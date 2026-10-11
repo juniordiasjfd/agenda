@@ -1,0 +1,23 @@
+{% extends "base_public.html" %}
+
+{% block title %}Verifique seu e-mail — Agenda{% endblock %}
+
+{% block content %}
+<div class="text-center">
+  <div class="mb-3"><i class="fa-solid fa-envelope-circle-check fa-3x text-primary"></i></div>
+  <h2 class="h2 mb-3">Verifique seu e-mail</h2>
+  <p class="text-secondary">
+    Se o e-mail informado estiver cadastrado e ativo, você receberá em instantes
+    um link para redefinir a senha. O link vale por 24 horas.
+  </p>
+  <p class="text-secondary mb-0">
+    Não recebeu? Confira a caixa de spam ou tente novamente.
+  </p>
+</div>
+{% endblock %}
+
+{% block below_card %}
+<div class="text-center text-secondary mt-3">
+  <a href="{% url 'usuarios:login' %}">Voltar para o login</a>
+</div>
+{% endblock %}

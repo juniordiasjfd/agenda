@@ -1,0 +1,28 @@
+{% extends "base_public.html" %}
+
+{% block title %}Esqueci minha senha — Agenda{% endblock %}
+
+{% block content %}
+<h2 class="h2 text-center mb-3">Esqueci minha senha</h2>
+<p class="text-secondary mb-4">
+  Informe o e-mail da sua conta. Se ele estiver cadastrado, enviaremos um link
+  para você escolher uma nova senha.
+</p>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% include "includes/_campo.html" with campo=form.email %}
+
+  <div class="form-footer">
+    <button type="submit" class="btn btn-primary w-100">
+      <i class="fa-solid fa-envelope me-2"></i>Enviar link
+    </button>
+  </div>
+</form>
+{% endblock %}
+
+{% block below_card %}
+<div class="text-center text-secondary mt-3">
+  <a href="{% url 'usuarios:login' %}">Voltar para o login</a>
+</div>
+{% endblock %}

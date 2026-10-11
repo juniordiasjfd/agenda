@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Alterar senha — Agenda{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <h2 class="page-title">Alterar senha</h2>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-6 col-lg-5">
+    <div class="card">
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="card-body">
+          {% for erro in form.non_field_errors %}
+            <div class="alert alert-danger" role="alert">{{ erro }}</div>
+          {% endfor %}
+          {% include "includes/_campo.html" with campo=form.old_password %}
+          {% include "includes/_campo.html" with campo=form.new_password1 %}
+          {% include "includes/_campo.html" with campo=form.new_password2 %}
+        </div>
+        <div class="card-footer text-end">
+          <a href="{% url 'core:home' %}" class="btn btn-link">Cancelar</a>
+          <button type="submit" class="btn btn-primary">
+            <i class="fa-solid fa-key me-2"></i>Salvar nova senha
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

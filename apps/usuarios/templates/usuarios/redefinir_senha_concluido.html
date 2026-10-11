@@ -1,0 +1,12 @@
+{% extends "base_public.html" %}
+
+{% block title %}Senha alterada — Agenda{% endblock %}
+
+{% block content %}
+<div class="text-center">
+  <div class="mb-3"><i class="fa-solid fa-circle-check fa-3x text-success"></i></div>
+  <h2 class="h2 mb-3">Senha alterada</h2>
+  <p class="text-secondary">Sua nova senha foi salva. Você já pode entrar com ela.</p>
+  <a href="{% url 'usuarios:login' %}" class="btn btn-primary">Entrar</a>
+</div>
+{% endblock %}
