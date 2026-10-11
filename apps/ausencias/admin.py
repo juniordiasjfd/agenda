@@ -5,7 +5,7 @@ from django.db.models import Count
 from django.forms.models import BaseInlineFormSet
 
 from apps.ausencias import ausencias_service
-from apps.ausencias.models import Ausencia, PeriodoAusencia, SituacaoAusencia, TipoAusencia
+from apps.ausencias.models import Ausencia, ImportacaoCSV, PeriodoAusencia, SituacaoAusencia, TipoAusencia
 from apps.colaboradores.admin import AuditoriaAdminMixin
 from apps.colaboradores.models import Colaborador
 
@@ -194,3 +194,21 @@ class AusenciaAdmin(AuditoriaAdminMixin, admin.ModelAdmin):
             periodo.atualizado_por = request.user
             periodo.save()
         formset.save_m2m()
+
+
+@admin.register(ImportacaoCSV)
+class ImportacaoCSVAdmin(admin.ModelAdmin):
+    """Só consulta: a importação é feita pela tela "Importar CSV"."""
+    list_display = ('criado_em', 'status', 'criado_por', 'aplicada_em')
+    list_filter = ('status',)
+    fields = ('id', 'status', 'criado_em', 'criado_por', 'aplicada_em', 'decisoes', 'resumo')
+    readonly_fields = fields
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

@@ -17,11 +17,14 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from django.conf import settings
+from django.db import transaction
+from django.db.models import Max
 from django.utils import timezone
 
 from apps.ausencias import ausencias_service
 from apps.ausencias.ausencias_service import ANO_MAXIMO, ANO_MINIMO
-from apps.ausencias.models import SituacaoAusencia, TipoAusencia
+from apps.ausencias.models import ImportacaoCSV, SituacaoAusencia, TipoAusencia
+from apps.colaboradores import colaboradores_service
 from apps.colaboradores.models import Colaborador
 from apps.core.utils import colapsar_espacos, normalizar_nome
 
@@ -733,3 +736,195 @@ def _definir_codigos(grupos):
         else:
             grupo.codigo = sid
             usados_no_lote.add(sid.upper())
+
+
+# ---------------------------------------------------------------------------
+# Staging (ImportacaoCSV) e aplicação
+# ---------------------------------------------------------------------------
+# Cor de tipo criado pela importação; o administrador ajusta no /admin/.
+COR_TIPO_NOVO = '#868e96'
+
+
+class ImportacaoIndisponivel(Exception):
+    """A importação não pode mais ser confirmada (aplicada, cancelada,
+    expirada ou sem nada a importar). A mensagem vai para a tela."""
+
+
+class PreviaDesatualizada(Exception):
+    """A análise refeita na confirmação difere da prévia exibida: nada foi
+    gravado. ``analise`` é a nova prévia."""
+
+    def __init__(self, analise):
+        super().__init__('Os dados mudaram desde a prévia: confira a nova prévia antes de confirmar.')
+        self.analise = analise
+
+
+class FalhaImportacao(Exception):
+    """Erro inesperado na gravação: a transação foi desfeita inteira."""
+
+
+def apagar_importacoes_antigas():
+    """Remove as importações (de qualquer situação) com mais de
+    ``ImportacaoCSV.RETENCAO``. Chamado a cada novo envio."""
+    limite = timezone.now() - ImportacaoCSV.RETENCAO
+    apagadas, _ = ImportacaoCSV.objects.filter(criado_em__lt=limite).delete()
+    return apagadas
+
+
+def criar_importacao(enviados, usuario):
+    """Lê os arquivos enviados e guarda o resultado para a prévia."""
+    apagar_importacoes_antigas()
+    lidos = ler_arquivos(enviados)
+    importacao = ImportacaoCSV.objects.create(
+        arquivos=[arquivo.para_json() for arquivo in lidos], criado_por=usuario, atualizado_por=usuario,
+    )
+    logger.info(
+        'Importação %s recebida: %d arquivo(s), %d registro(s).',
+        importacao.pk, len(lidos), sum(len(arquivo.registros) for arquivo in lidos),
+    )
+    return importacao
+
+
+def arquivos_da_importacao(importacao):
+    return [ArquivoLido.de_json(dados) for dados in importacao.arquivos]
+
+
+def analisar_importacao(importacao, decisoes=None):
+    """Prévia com as ``decisoes`` informadas ou, sem elas, as guardadas."""
+    return analisar(arquivos_da_importacao(importacao), importacao.decisoes if decisoes is None else decisoes)
+
+
+def salvar_decisoes(importacao, decisoes, usuario):
+    importacao.decisoes = normalizar_decisoes(decisoes)
+    importacao.atualizado_por = usuario
+    importacao.save(update_fields=['decisoes', 'atualizado_por', 'atualizado_em'])
+    return importacao
+
+
+def cancelar_importacao(importacao, usuario):
+    """Descarta a importação pendente; as linhas lidas são apagadas já."""
+    if importacao.status != ImportacaoCSV.PENDENTE:
+        return importacao
+    importacao.status = ImportacaoCSV.CANCELADA
+    importacao.arquivos = []
+    importacao.atualizado_por = usuario
+    importacao.save(update_fields=['status', 'arquivos', 'atualizado_por', 'atualizado_em'])
+    logger.info('Importação %s cancelada.', importacao.pk)
+    return importacao
+
+
+def verificar_disponivel(importacao):
+    """``ImportacaoIndisponivel`` se a importação não está mais pendente."""
+    if importacao.status == ImportacaoCSV.APLICADA:
+        raise ImportacaoIndisponivel('Esta importação já foi aplicada.')
+    if importacao.status == ImportacaoCSV.CANCELADA:
+        raise ImportacaoIndisponivel('Esta importação foi cancelada. Envie os arquivos novamente.')
+    if importacao.expirada:
+        raise ImportacaoIndisponivel('A prévia expirou (mais de 2 horas). Envie os arquivos novamente.')
+
+
+def _criar_cadastros(a_criar, usuario):
+    """Cria os cadastros marcados. Devolve ``{referência: objeto criado}``."""
+    criados = {}
+    for novo in a_criar['colaboradores']:
+        colaborador = Colaborador(nome=novo.nome, ativo=True, departamento=None)
+        criados[_referencia(novo)] = colaboradores_service.salvar_colaborador(colaborador, usuario)
+    ordem = (TipoAusencia.objects.aggregate(maior=Max('ordem'))['maior'] or 0)
+    for novo in a_criar['tipos']:
+        ordem += 1
+        tipo = TipoAusencia(nome=novo.nome, cor=COR_TIPO_NOVO, ativo=True, ordem=ordem,
+                            criado_por=usuario, atualizado_por=usuario)
+        tipo.save()
+        criados[_referencia(novo)] = tipo
+    ordem = (SituacaoAusencia.objects.aggregate(maior=Max('ordem'))['maior'] or 0)
+    for novo in a_criar['situacoes']:
+        ordem += 1
+        situacao = SituacaoAusencia(nome=novo.nome, ativo=True, ordem=ordem, padrao=False, conta_como_ausencia=True)
+        criados[_referencia(novo)] = ausencias_service.salvar_situacao(situacao, usuario)
+    return criados
+
+
+def resumo_da_analise(analise, codigos=()):
+    """O que fica guardado depois de aplicar (as linhas lidas são apagadas)."""
+    return {
+        'contagens': analise.contagens,
+        'arquivos': [
+            {'nome': a.nome, 'codificacao': a.codificacao, 'separador': a.separador,
+             'registros': len(a.registros), 'erro': a.erro}
+            for a in analise.arquivos
+        ],
+        'criados': {entidade: [novo.nome for novo in analise.a_criar[entidade]] for entidade in ENTIDADES},
+        'codigos': list(codigos),
+        'nao_importadas': [linha.para_nao_importada() for linha in analise.nao_importadas],
+    }
+
+
+def aplicar_importacao(importacao, decisoes, assinatura, usuario):
+    """Grava a importação exatamente como a prévia mostrou, numa única
+    transação:
+
+    1. trava a importação e os colaboradores envolvidos (ordem de pk);
+    2. refaz a análise com as ``decisoes`` enviadas;
+    3. se a assinatura diferir da exibida (``assinatura``), não grava nada
+       e levanta ``PreviaDesatualizada`` com a prévia nova;
+    4. cria os cadastros marcados e cada ausência por
+       ``ausencias_service.criar_ausencia`` (com o código decidido).
+
+    Qualquer erro desfaz tudo (``FalhaImportacao``, registrado no log).
+    Devolve a ``ImportacaoCSV`` aplicada, com o ``resumo``.
+    """
+    try:
+        with transaction.atomic():
+            importacao = ImportacaoCSV.objects.select_for_update().get(pk=importacao.pk)
+            verificar_disponivel(importacao)
+            arquivos = arquivos_da_importacao(importacao)
+            nomes = {normalizar_nome(r.colaborador) for arquivo in arquivos for r in arquivo.registros}
+            ausencias_service.travar_colaboradores(
+                *Colaborador.objects.filter(nome_normalizado__in=nomes).values_list('pk', flat=True)
+            )
+            analise = analisar(arquivos, decisoes)
+            if analise.assinatura != assinatura:
+                raise PreviaDesatualizada(analise)
+            if not analise.tem_o_que_importar:
+                raise ImportacaoIndisponivel('Não há linhas a importar.')
+
+            criados = _criar_cadastros(analise.a_criar, usuario)
+
+            def real(objeto):
+                return criados[_referencia(objeto)] if isinstance(objeto, NovoCadastro) else objeto
+
+            codigos = []
+            for grupo in analise.grupos:
+                periodos = [
+                    ausencias_service.PeriodoInformado(linha.data_inicio, linha.data_fim, real(linha.situacao))
+                    for linha in grupo.linhas
+                ]
+                ausencia = ausencias_service.criar_ausencia(
+                    real(grupo.colaborador), real(grupo.tipo), periodos, grupo.observacoes, usuario,
+                    codigo=grupo.codigo,
+                )
+                codigos.append(ausencia.codigo)
+
+            importacao.status = ImportacaoCSV.APLICADA
+            importacao.aplicada_em = timezone.now()
+            importacao.decisoes = analise.decisoes
+            importacao.resumo = resumo_da_analise(analise, codigos)
+            importacao.arquivos = []
+            importacao.atualizado_por = usuario
+            importacao.save()
+    except (PreviaDesatualizada, ImportacaoIndisponivel):
+        raise
+    except Exception as erro:
+        logger.exception('Falha ao aplicar a importação %s: nada foi gravado.', importacao.pk)
+        raise FalhaImportacao('Erro ao gravar a importação: nada foi gravado.') from erro
+
+    contagens = importacao.resumo['contagens']
+    logger.info(
+        'Importação %s aplicada: %d período(s) em %d ausência(s); %d duplicata(s), %d sobreposição(ões), '
+        '%d inválida(s), %d pendente(s); criados %d colaborador(es), %d tipo(s), %d situação(ões).',
+        importacao.pk, contagens[IMPORTAR], contagens['ausencias'], contagens[DUPLICATA],
+        contagens[SOBREPOSICAO], contagens[INVALIDA], contagens[PENDENTE],
+        contagens['criar_colaboradores'], contagens['criar_tipos'], contagens['criar_situacoes'],
+    )
+    return importacao
+

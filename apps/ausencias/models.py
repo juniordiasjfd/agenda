@@ -1,8 +1,12 @@
+import uuid
+from datetime import timedelta
+
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
 from django.db.models import Q
 from django.db.models.functions import Lower
+from django.utils import timezone
 
 from apps.colaboradores.models import Colaborador
 from apps.core.models import AuditoriaBase, SoftDeleteMixin
@@ -218,3 +222,44 @@ class PeriodoAusencia(AuditoriaBase):
     def dias(self):
         """Dias corridos, contando início e fim."""
         return (self.data_fim - self.data_inicio).days + 1
+
+
+class ImportacaoCSV(AuditoriaBase):
+    """Staging da importação de CSV (``csv_service``): guarda as linhas lidas
+    entre o envio dos arquivos, a prévia e a confirmação.
+
+    ``arquivos``: ``ArquivoLido.para_json()`` de cada arquivo (apagado ao
+    aplicar ou cancelar). ``decisoes``: cadastros marcados para criar.
+    ``resumo``: contagens e linhas não importadas, depois de aplicada.
+    Pendente com mais de ``VALIDADE_PREVIA`` está expirada; qualquer uma
+    com mais de ``RETENCAO`` é apagada no próximo envio.
+    """
+    PENDENTE = 'pendente'
+    APLICADA = 'aplicada'
+    CANCELADA = 'cancelada'
+    STATUS = [(PENDENTE, 'Pendente'), (APLICADA, 'Aplicada'), (CANCELADA, 'Cancelada')]
+    VALIDADE_PREVIA = timedelta(hours=2)
+    RETENCAO = timedelta(hours=24)
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    arquivos = models.JSONField(default=list, blank=True, verbose_name='Arquivos lidos')
+    decisoes = models.JSONField(default=dict, blank=True, verbose_name='Cadastros a criar')
+    status = models.CharField(max_length=10, choices=STATUS, default=PENDENTE, verbose_name='Situação')
+    resumo = models.JSONField(default=dict, blank=True, verbose_name='Resumo')
+    aplicada_em = models.DateTimeField(null=True, blank=True, verbose_name='Aplicada em')
+
+    class Meta:
+        verbose_name = 'importação de CSV'
+        verbose_name_plural = 'importações de CSV'
+        ordering = ['-criado_em']
+
+    def __str__(self):
+        return f'Importação de {timezone.localtime(self.criado_em):%d/%m/%Y %H:%M} ({self.get_status_display()})'
+
+    @property
+    def expirada(self):
+        return self.status == self.PENDENTE and self.criado_em < timezone.now() - self.VALIDADE_PREVIA
+
+    @property
+    def nomes_arquivos(self):
+        return [arquivo['nome'] for arquivo in self.arquivos] or [a['nome'] for a in self.resumo.get('arquivos', [])]
