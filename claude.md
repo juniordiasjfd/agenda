@@ -204,6 +204,31 @@ do settings) estão em `legado/referencias/`: reproduza esses padrões.
   "ausência em" [de, até], "presença em" [de, até] (= nenhuma ausência no
   período), incluir colaboradores sem registros. Só colaboradores ativos e só
   situações que contam como ausência. Situação aparece no tooltip.
+- `painel_service.py` é a fonte única dos filtros (página e endpoint).
+  Critério de ausência = o de `conta_como_ausencia`/`cruzam`, expresso em
+  queryset e coberto por teste de equivalência com as funções puras. Envia
+  TODOS os períodos das pessoas filtradas, sem recorte pela janela visível.
+  Legenda: tipos ativos + tipos presentes nos dados (mesmo inativos).
+- Endpoint `GET painel/dados/` (qualquer autenticado; anônimo → login).
+  Parâmetros: `q`, `departamento` (repetido: ids e `sem`), `ausente_de`,
+  `ausente_ate`, `presente_de`, `presente_ate`, `sem_registros` (0/1; vale o
+  último valor; padrão 1). Resposta: `{hoje, tipos: [{id, nome, cor}],
+  pessoas: [{id, nome, departamento, periodos: [{inicio, fim, dias, tipo_id,
+  situacao, url}]}], avisos}`. `hoje` vem do servidor (America/Sao_Paulo),
+  `Cache-Control: no-store`; observações não são enviadas.
+- Departamentos: multisseleção (união); ausência do parâmetro = Todos
+  (inclusive os criados depois); `sem` = Sem departamento, combinável com ids.
+- Intervalos: uma data só = dia único; invertido é trocado; data inválida ou
+  fora de 2000–2100 ignora o filtro e vira aviso na tela.
+- "Presença em" = nenhum período que conta cruzando o intervalo. "Incluir
+  colaboradores sem registros" desmarcado = só quem tem pelo menos um período
+  que conta (mesmo com "presença em"); marcado = também quem não tem nenhum.
+- `static/js/painel.js` só desenha (não decide o que é ausência nem filtra).
+  Texto do servidor só por textContent, nunca innerHTML; cor do tipo validada
+  no cliente (`#RRGGBB`, senão cinza); localStorage só para a preferência de
+  escala. Clique na barra (link) abre o detalhe da ausência.
+- O painel é a página inicial: `/` redireciona para `painel/` e
+  `LOGIN_REDIRECT_URL` aponta para ele.
 
 ## senha
 - Redefinição de senha: fluxo padrão do Django (solicitar, e-mail enviado,
@@ -231,6 +256,12 @@ do settings) estão em `legado/referencias/`: reproduza esses padrões.
   (`static/css/agenda.css`), nunca no arquivo do CDN. O Tabler usa
   `--tblr-*`: temas de terceiros baseados em `--bs-*` precisam de override,
   conferido nos temas claro e escuro.
+- CSS: toda `var(--tblr-*)` com valor de reserva (teste em
+  `apps/core/tests/test_css.py`). CSS de terceiros da página no bloco
+  `extra_css` (carrega ANTES do `agenda.css`); CSS do projeto por página no
+  `page_css`. Override de tema de terceiros: mapear as `--bs-*` dele para
+  `--tblr-*` e conferir ordem de carga e especificidade (lição do Tom
+  Select). Estáticos do projeto com `{% static_versionado %}`.
 - HTMX é melhoria progressiva: toda tela, filtro e modal funciona por URL
   completa sem JavaScript; as respostas parciais só trocam fragmentos.
 - Permissões em `apps/core/permissions.py` (`eh_gestor`, `GestorMixin`,
