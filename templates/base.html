@@ -33,11 +33,27 @@
 
           {% if user.is_superuser %}
           {# ---- Só administrador ---- #}
-          <li class="nav-item">
-            <a class="nav-link" href="{% url 'admin:index' %}">
+          {% if active_nav == 'pendentes' or active_nav == 'convites' %}{% firstof 'show' as menu_admin_aberto %}{% endif %}
+          <li class="nav-item dropdown{% if menu_admin_aberto %} active{% endif %}">
+            <a class="nav-link dropdown-toggle {{ menu_admin_aberto }}" href="#menu-admin" data-bs-toggle="dropdown"
+               data-bs-auto-close="false" role="button" aria-expanded="{% if menu_admin_aberto %}true{% else %}false{% endif %}">
               <span class="nav-link-icon"><i class="fa-solid fa-screwdriver-wrench"></i></span>
               <span class="nav-link-title">Administração</span>
+              {% if cadastros_pendentes %}
+                <span class="badge bg-red text-red-fg ms-2" title="Cadastros pendentes">{{ cadastros_pendentes }}</span>
+              {% endif %}
             </a>
+            <div class="dropdown-menu {{ menu_admin_aberto }}">
+              <a class="dropdown-item{% if active_nav == 'pendentes' %} active{% endif %}" href="{% url 'usuarios:pendentes' %}">
+                <i class="fa-solid fa-user-clock me-2"></i>Cadastros pendentes
+                {% if cadastros_pendentes %}
+                  <span class="badge bg-red text-red-fg ms-auto">{{ cadastros_pendentes }}</span>
+                {% endif %}
+              </a>
+              <a class="dropdown-item" href="{% url 'admin:index' %}">
+                <i class="fa-solid fa-gears me-2"></i>Admin do Django
+              </a>
+            </div>
           </li>
           {% endif %}
         </ul>

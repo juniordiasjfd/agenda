@@ -126,7 +126,7 @@ def test_pendente_tentando_entrar_ve_mensagem_de_aprovacao(client):
 
 def test_service_recusa_email_nao_permitido():
     with pytest.raises(usuarios_service.EmailNaoPermitido):
-        usuarios_service.registrar_autocadastro('X', 'x@gmail.com', SENHA_NOVA)
+        usuarios_service.registrar_autocadastro('X', 'x@gmail.com', SENHA_NOVA, 'http://testserver/')
 
 
 # ---------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 import pytest
+from django.contrib.auth.models import Group
 from django.utils import timezone
 
 from apps.usuarios.models import User
@@ -35,3 +36,16 @@ def usuario_desativado(db):
         'desativado@scriba.com.br', SENHA, nome='Desativado',
         is_active=False, aprovado_em=timezone.now(),
     )
+
+
+@pytest.fixture
+def admin(db):
+    return User.objects.create_superuser('admin@scriba.com.br', SENHA, nome='Admin')
+
+
+@pytest.fixture
+def gestor(db):
+    """Usuário comum aprovado, no grupo Gestor (sem acesso de administrador)."""
+    usuario = User.objects.create_user('gestor@scriba.com.br', SENHA, nome='Gestor')
+    usuario.groups.add(Group.objects.get(name='Gestor'))
+    return usuario

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Cadastros pendentes — Agenda{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="page-pretitle">Administração</div>
+    <h2 class="page-title">Cadastros pendentes</h2>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  {% if pendentes %}
+  <div class="table-responsive">
+    <table class="table table-vcenter card-table">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>E-mail</th>
+          <th>Cadastrado em</th>
+          <th class="w-1"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pendente in pendentes %}
+        <tr>
+          <td>{{ pendente.nome }}</td>
+          <td class="text-secondary">{{ pendente.email }}</td>
+          <td class="text-secondary text-nowrap">{{ pendente.date_joined|date:"d/m/Y H:i" }}</td>
+          <td class="text-nowrap">
+            <form method="post" action="{% url 'usuarios:aprovar_usuario' pendente.pk %}" class="d-inline"
+                  x-data @submit="if (!confirm('Aprovar o cadastro de {{ pendente.email|escapejs }}?')) $event.preventDefault()">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-success btn-sm">
+                <i class="fa-solid fa-check me-1"></i>Aprovar
+              </button>
+            </form>
+            <form method="post" action="{% url 'usuarios:rejeitar_usuario' pendente.pk %}" class="d-inline"
+                  x-data @submit="if (!confirm('Rejeitar e EXCLUIR o cadastro de {{ pendente.email|escapejs }}? Esta ação não pode ser desfeita.')) $event.preventDefault()">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline-danger btn-sm">
+                <i class="fa-solid fa-xmark me-1"></i>Rejeitar
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body text-center text-secondary py-5">
+    <i class="fa-solid fa-inbox fs-1 mb-3 d-block"></i>
+    Nenhum cadastro aguardando aprovação.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

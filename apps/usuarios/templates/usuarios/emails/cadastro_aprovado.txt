@@ -1,0 +1,10 @@
+{% autoescape off %}Olá{% if usuario.nome %}, {{ usuario.nome }}{% endif %}.
+
+Seu cadastro na Agenda foi aprovado. Você já pode entrar com o seu e-mail
+({{ usuario.email }}) e a senha que escolheu:
+
+{{ url_login }}
+
+Agenda — Scriba
+(Mensagem automática, não responda.)
+{% endautoescape %}

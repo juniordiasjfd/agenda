@@ -15,6 +15,19 @@ urlpatterns = [
     path('cadastro/', views.CadastroView.as_view(), name='cadastro'),
     path('cadastro/recebido/', views.CadastroRecebidoView.as_view(), name='cadastro_recebido'),
 
+    # Cadastros pendentes (só administrador).
+    path('administracao/cadastros-pendentes/', views.PendentesView.as_view(), name='pendentes'),
+    path(
+        'administracao/cadastros-pendentes/<int:pk>/aprovar/',
+        views.AprovarUsuarioView.as_view(),
+        name='aprovar_usuario',
+    ),
+    path(
+        'administracao/cadastros-pendentes/<int:pk>/rejeitar/',
+        views.RejeitarUsuarioView.as_view(),
+        name='rejeitar_usuario',
+    ),
+
     # Redefinição de senha (esqueci minha senha) — usuário deslogado.
     path(
         'senha/redefinir/',

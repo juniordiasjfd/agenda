@@ -1,0 +1,14 @@
+{% autoescape off %}Olá.
+
+Um novo cadastro na Agenda aguarda a sua aprovação:
+
+Nome: {{ usuario.nome }}
+E-mail: {{ usuario.email }}
+
+Para aprovar ou rejeitar, acesse:
+
+{{ url_pendentes }}
+
+Agenda — Scriba
+(Mensagem automática, não responda.)
+{% endautoescape %}
