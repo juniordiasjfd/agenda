@@ -21,16 +21,7 @@
 {% endblock %}
 
 {% block content %}
-{% if sem_departamento %}
-<div class="alert alert-warning d-flex align-items-center" role="alert">
-  <i class="fa-solid fa-triangle-exclamation me-2"></i>
-  <div>
-    {{ sem_departamento }} colaborador{{ sem_departamento|pluralize:"es" }} ativo{{ sem_departamento|pluralize }}
-    sem departamento.
-    <a href="?departamento={{ filtro_sem_departamento }}&amp;situacao=ativos" class="alert-link">Ver e completar</a>
-  </div>
-</div>
-{% endif %}
+{% include "colaboradores/_aviso_sem_departamento.html" %}
 
 <div class="card">
   <div class="card-body border-bottom">

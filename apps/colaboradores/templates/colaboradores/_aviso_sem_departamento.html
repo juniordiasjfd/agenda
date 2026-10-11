@@ -1,0 +1,13 @@
+{# Aviso de colaboradores ativos sem departamento. Contexto: sem_departamento, filtro_sem_departamento, oob (opcional). #}
+<div id="aviso-sem-departamento"{% if oob %} hx-swap-oob="true"{% endif %}>
+  {% if sem_departamento %}
+  <div class="alert alert-warning d-flex align-items-center" role="alert">
+    <i class="fa-solid fa-triangle-exclamation me-2"></i>
+    <div>
+      {{ sem_departamento }} colaborador{{ sem_departamento|pluralize:"es" }} ativo{{ sem_departamento|pluralize }}
+      sem departamento.
+      <a href="?departamento={{ filtro_sem_departamento }}&amp;situacao=ativos" class="alert-link">Ver e completar</a>
+    </div>
+  </div>
+  {% endif %}
+</div>

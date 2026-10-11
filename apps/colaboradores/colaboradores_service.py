@@ -109,6 +109,18 @@ def salvar_colaborador(colaborador, usuario):
     return _gravar_com_auditoria(colaborador, usuario)
 
 
+def alterar_departamento(colaborador_id, departamento_id, usuario):
+    """Troca só o departamento (edição rápida na lista). ``departamento_id``
+    vazio/``None`` = sem departamento. ``Colaborador.DoesNotExist`` ou
+    ``Departamento.DoesNotExist`` se algum id não existir."""
+    departamento = Departamento.objects.get(pk=departamento_id) if departamento_id else None
+    colaborador = Colaborador.objects.select_related('usuario').get(pk=colaborador_id)
+    colaborador.departamento = departamento
+    colaborador.atualizado_por = usuario
+    colaborador.save(update_fields=['departamento', 'atualizado_por', 'atualizado_em'])
+    return colaborador
+
+
 def alterar_ativo(colaborador_id, ativo, usuario):
     """Ativa ou desativa (nunca exclui). ``Colaborador.DoesNotExist`` se o id
     não existir."""

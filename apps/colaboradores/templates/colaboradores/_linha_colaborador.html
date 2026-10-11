@@ -1,10 +1,18 @@
-{# Uma linha da lista de colaboradores. Contexto: colaborador. #}
+{# Uma linha da lista de colaboradores. Contexto: colaborador, departamentos, voltar (URL da lista filtrada). #}
 <tr id="colaborador-{{ colaborador.pk }}">
   <td>
     <a href="{% url 'colaboradores:colaborador_editar' colaborador.pk %}">{{ colaborador.nome }}</a>
   </td>
   <td>
-    {% if colaborador.departamento %}{{ colaborador.departamento }}{% else %}<span class="text-secondary">Sem departamento</span>{% endif %}
+    {# Edição rápida: salva ao mudar e troca a linha inteira pela resposta. #}
+    <select name="departamento" class="form-select form-select-sm" aria-label="Departamento de {{ colaborador.nome }}"
+            hx-post="{% url 'colaboradores:colaborador_departamento' colaborador.pk %}" hx-trigger="change"
+            hx-target="closest tr" hx-swap="outerHTML">
+      <option value=""{% if not colaborador.departamento_id %} selected{% endif %}>Sem departamento</option>
+      {% for departamento in departamentos %}
+        <option value="{{ departamento.pk }}"{% if departamento.pk == colaborador.departamento_id %} selected{% endif %}>{{ departamento.nome }}</option>
+      {% endfor %}
+    </select>
   </td>
   <td>
     {% if colaborador.ativo %}
@@ -20,9 +28,9 @@
     </a>
     {% if colaborador.ativo %}
     <form method="post" action="{% url 'colaboradores:colaborador_desativar' colaborador.pk %}" class="d-inline"
-          x-data @submit="if (!confirm('Desativar {{ colaborador.nome|escapejs }}? Ele deixa de aparecer no formulário e no painel; o histórico permanece.')) $event.preventDefault()">
+          x-data @submit="if (!confirm('Desativar {{ colaborador.nome|escapejs }}? O nome deixa de aparecer no formulário e no painel; o histórico permanece.')) $event.preventDefault()">
       {% csrf_token %}
-      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <input type="hidden" name="next" value="{{ voltar }}">
       <button type="submit" class="btn btn-sm btn-outline-secondary" title="Desativar">
         <i class="fa-solid fa-user-slash"></i>
       </button>
@@ -30,7 +38,7 @@
     {% else %}
     <form method="post" action="{% url 'colaboradores:colaborador_ativar' colaborador.pk %}" class="d-inline">
       {% csrf_token %}
-      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <input type="hidden" name="next" value="{{ voltar }}">
       <button type="submit" class="btn btn-sm btn-outline-success" title="Ativar">
         <i class="fa-solid fa-user-check"></i>
       </button>

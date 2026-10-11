@@ -14,6 +14,11 @@ urlpatterns = [
         name='colaborador_editar',
     ),
     path(
+        'administracao/colaboradores/<int:pk>/departamento/',
+        views.AlterarDepartamentoView.as_view(),
+        name='colaborador_departamento',
+    ),
+    path(
         'administracao/colaboradores/<int:pk>/ativar/',
         views.AlterarAtivoView.as_view(ativo=True),
         name='colaborador_ativar',

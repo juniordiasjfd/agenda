@@ -1,6 +1,6 @@
 from django.contrib import messages
-from django.http import Http404
-from django.shortcuts import redirect
+from django.http import Http404, HttpResponseBadRequest
+from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
@@ -81,7 +81,37 @@ class ColaboradoresView(AdministradorMixin, ListView):
         kwargs['filtro'] = self.filtro
         kwargs['sem_departamento'] = colaboradores_service.contar_sem_departamento()
         kwargs['filtro_sem_departamento'] = colaboradores_service.SEM_DEPARTAMENTO
+        kwargs['departamentos'] = Departamento.objects.all()
+        kwargs['voltar'] = self.request.get_full_path()
         return super().get_context_data(**kwargs)
+
+
+class AlterarDepartamentoView(AdministradorMixin, View):
+    """Edição rápida do departamento na lista (HTMX, salva ao mudar o
+    select). Devolve a linha atualizada e, fora da banda, o aviso de
+    colaboradores sem departamento."""
+    http_method_names = ['post']
+
+    def post(self, request, pk):
+        try:
+            colaborador = colaboradores_service.alterar_departamento(
+                pk, request.POST.get('departamento') or None, request.user,
+            )
+        except Colaborador.DoesNotExist:
+            raise Http404('Colaborador não encontrado.')
+        except (Departamento.DoesNotExist, ValueError):
+            return HttpResponseBadRequest('Departamento inválido.')
+        if not request.headers.get('HX-Request'):
+            messages.success(request, f'Departamento de "{colaborador.nome}" alterado.')
+            return redirect('colaboradores:colaboradores')
+        return render(request, 'colaboradores/_departamento_alterado.html', {
+            'colaborador': colaborador,
+            'departamentos': Departamento.objects.all(),
+            'sem_departamento': colaboradores_service.contar_sem_departamento(),
+            'filtro_sem_departamento': colaboradores_service.SEM_DEPARTAMENTO,
+            # Página de onde veio o HTMX, para o "next" de ativar/desativar.
+            'voltar': request.headers.get('HX-Current-URL', ''),
+        })
 
 
 class ColaboradorFormMixin(AdministradorMixin):
