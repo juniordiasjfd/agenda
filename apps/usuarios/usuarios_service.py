@@ -12,6 +12,7 @@ from django.contrib.auth.models import Group
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from apps.colaboradores.models import Colaborador
 from apps.core.email_service import enviar_email
 from apps.usuarios.models import Convite, DominioAutocadastro, User
 
@@ -181,24 +182,39 @@ def _parse_token(token):
         return None
 
 
+def _colaborador_tomado(convite):
+    """O colaborador do convite já foi vinculado a outro usuário?"""
+    colaborador = convite.colaborador
+    return colaborador is not None and colaborador.usuario_id is not None
+
+
 def obter_convite_valido(token):
-    """O convite pendente (não usado e não expirado) do token, ou ``None``."""
+    """O convite pendente (não usado e não expirado) do token, ou ``None``.
+
+    Também ``None`` se o colaborador do convite já tiver sido vinculado a outro
+    usuário: o aceite seria recusado, então a página já mostra o aviso neutro.
+    """
     token = _parse_token(token)
     if token is None:
         return None
-    convite = Convite.objects.filter(token=token).first()
-    if convite is None or not convite.pendente:
+    convite = Convite.objects.select_related('colaborador').filter(token=token).first()
+    if convite is None or not convite.pendente or _colaborador_tomado(convite):
         return None
     return convite
 
 
 def aceitar_convite(token, nome, senha):
-    """Cria o usuário do convite (ativo, aprovado, Gestor) e marca ``usado_em``.
+    """Cria o usuário do convite (ativo, aprovado, Gestor), vincula ao
+    colaborador do convite (se houver) e marca ``usado_em``.
 
     Tudo numa transação com o convite travado (``select_for_update``): dois
     aceites simultâneos do mesmo token são serializados e o segundo encontra o
     convite já usado (``ConviteInvalido``). Se o e-mail já tiver usuário,
     ``EmailJaCadastrado`` e o convite continua pendente.
+
+    O colaborador também é travado: se ele já tiver sido vinculado a outro
+    usuário nesse meio-tempo, ``ConviteInvalido`` SEM consumir o convite (a
+    interface mostra a mesma página neutra) e o caso fica no log.
     """
     token = _parse_token(token)
     if token is None:
@@ -207,6 +223,15 @@ def aceitar_convite(token, nome, senha):
         convite = Convite.objects.select_for_update().filter(token=token).first()
         if convite is None or not convite.pendente:
             raise ConviteInvalido()
+        colaborador = None
+        if convite.colaborador_id is not None:
+            colaborador = Colaborador.objects.select_for_update().get(pk=convite.colaborador_id)
+            if colaborador.usuario_id is not None:
+                logger.warning(
+                    'Convite %s (%s) não aceito: o colaborador "%s" já está vinculado a outro usuário.',
+                    convite.pk, convite.email, colaborador.nome,
+                )
+                raise ConviteInvalido()
         if User.objects.filter(email__iexact=convite.email).exists():
             raise EmailJaCadastrado(convite.email)
         try:
@@ -216,9 +241,15 @@ def aceitar_convite(token, nome, senha):
         except IntegrityError:
             raise EmailJaCadastrado(convite.email)
         usuario.groups.add(Group.objects.get(name=NOME_GRUPO_GESTOR))
+        if colaborador is not None:
+            colaborador.usuario = usuario
+            colaborador.save(update_fields=['usuario', 'atualizado_em'])
         convite.usado_em = timezone.now()
         convite.save(update_fields=['usado_em', 'atualizado_em'])
-    logger.info('Convite aceito: %s.', usuario.email)
+    logger.info(
+        'Convite aceito: %s%s.', usuario.email,
+        f' (vinculado ao colaborador "{colaborador.nome}")' if colaborador else '',
+    )
     return usuario
 
 
@@ -229,7 +260,12 @@ VALIDADE_PADRAO_DIAS = 7
 
 
 class ConviteRecusado(Exception):
-    """Operação de convite não permitida; a mensagem vai para o usuário."""
+    """Operação de convite não permitida; a mensagem vai para o usuário.
+    ``campo``: campo do formulário a que o erro se refere (padrão: e-mail)."""
+
+    def __init__(self, mensagem, campo='email'):
+        super().__init__(mensagem)
+        self.campo = campo
 
 
 def _convites_pendentes():
@@ -237,15 +273,17 @@ def _convites_pendentes():
 
 
 def listar_convites():
-    return Convite.objects.select_related('criado_por').order_by('-criado_em', '-pk')
+    return Convite.objects.select_related('criado_por', 'colaborador').order_by('-criado_em', '-pk')
 
 
-def criar_convite(email, validade_dias, criado_por):
-    """Cria convite para ``email`` válido por ``validade_dias``.
+def criar_convite(email, validade_dias, criado_por, colaborador=None):
+    """Cria convite para ``email`` válido por ``validade_dias``, opcionalmente
+    para vincular a ``colaborador`` no aceite.
 
     Recusa (``ConviteRecusado``) e-mail que já tem usuário ou que já tem
-    convite pendente não expirado. Não depende dos domínios de autocadastro:
-    o administrador pode convidar qualquer e-mail.
+    convite pendente não expirado; e colaborador inativo, já vinculado a um
+    usuário ou que já tem convite pendente não expirado. Não depende dos
+    domínios de autocadastro: o administrador pode convidar qualquer e-mail.
     """
     email = User.objects.normalize_email(email)
     if User.objects.filter(email__iexact=email).exists():
@@ -254,12 +292,27 @@ def criar_convite(email, validade_dias, criado_por):
         raise ConviteRecusado(
             'Já existe um convite pendente para este e-mail. Reenvie ou revogue o convite existente.'
         )
-    convite = Convite.objects.create(
-        email=email,
-        expira_em=timezone.now() + timedelta(days=validade_dias),
-        criado_por=criado_por,
-        atualizado_por=criado_por,
-    )
+    with transaction.atomic():
+        if colaborador is not None:
+            # Travado: dois convites simultâneos para o mesmo colaborador são
+            # serializados e o segundo vê o primeiro como pendente.
+            colaborador = Colaborador.objects.select_for_update().get(pk=colaborador.pk)
+            if not colaborador.ativo:
+                raise ConviteRecusado('O colaborador escolhido está inativo.', campo='colaborador')
+            if colaborador.usuario_id is not None:
+                raise ConviteRecusado('O colaborador escolhido já está vinculado a um usuário.', campo='colaborador')
+            if _convites_pendentes().filter(colaborador=colaborador).exists():
+                raise ConviteRecusado(
+                    'Já existe um convite pendente para este colaborador. Reenvie ou revogue o convite existente.',
+                    campo='colaborador',
+                )
+        convite = Convite.objects.create(
+            email=email,
+            colaborador=colaborador,
+            expira_em=timezone.now() + timedelta(days=validade_dias),
+            criado_por=criado_por,
+            atualizado_por=criado_por,
+        )
     logger.info('Convite criado para %s por %s.', email, getattr(criado_por, 'email', None))
     return convite
 

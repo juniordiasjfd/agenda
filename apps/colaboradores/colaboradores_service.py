@@ -108,6 +108,27 @@ def usuarios_vinculaveis(atual=None):
     return usuarios.order_by('nome', 'email')
 
 
+def colaboradores_vinculaveis():
+    """Colaboradores que podem receber um usuário (convite ou aprovação):
+    ativos e ainda sem usuário."""
+    return Colaborador.objects.filter(ativo=True, usuario__isnull=True)
+
+
+def colaborador_por_nome(nome):
+    """O único colaborador vinculável (ativo e sem usuário) cujo nome
+    normalizado é igual ao de ``nome``, ou ``None``. Usado para pré-selecionar
+    o vínculo na aprovação: só sugere, nunca vincula.
+
+    Como ``nome_normalizado`` é único, há no máximo um homônimo; se ele estiver
+    inativo ou já vinculado, não há sugestão.
+    """
+    chave = normalizar_nome(nome)
+    if not chave:
+        return None
+    candidatos = list(colaboradores_vinculaveis().filter(nome_normalizado=chave)[:2])
+    return candidatos[0] if len(candidatos) == 1 else None
+
+
 def salvar_colaborador(colaborador, usuario):
     return _gravar_com_auditoria(colaborador, usuario)
 

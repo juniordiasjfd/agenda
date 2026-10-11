@@ -180,9 +180,10 @@ class ConvitesView(AdministradorMixin, FormView):
         try:
             convite = usuarios_service.criar_convite(
                 form.cleaned_data['email'], form.cleaned_data['validade_dias'], criado_por=self.request.user,
+                colaborador=form.cleaned_data['colaborador'],
             )
         except usuarios_service.ConviteRecusado as erro:
-            form.add_error('email', str(erro))
+            form.add_error(erro.campo, str(erro))
             return self.form_invalid(form)
         messages.success(self.request, f'Convite criado para {convite.email}.')
         if form.cleaned_data['enviar_por_email']:

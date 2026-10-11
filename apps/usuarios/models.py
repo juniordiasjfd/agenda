@@ -196,6 +196,15 @@ class Convite(AuditoriaBase):
     email = models.EmailField(verbose_name='E-mail do convidado')
     expira_em = models.DateTimeField(verbose_name='Expira em')
     usado_em = models.DateTimeField(null=True, blank=True, verbose_name='Usado em')
+    colaborador = models.ForeignKey(
+        'colaboradores.Colaborador',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='convites',
+        verbose_name='Colaborador',
+        help_text='Se informado, o usuário criado no aceite fica vinculado a este colaborador.',
+    )
 
     class Meta:
         verbose_name = 'convite'

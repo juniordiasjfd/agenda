@@ -10,6 +10,8 @@ from django.contrib.auth.forms import (
 )
 from django.core.exceptions import ValidationError
 
+from apps.colaboradores import colaboradores_service
+from apps.colaboradores.models import Colaborador
 from apps.core.forms import TablerFormMixin
 from apps.usuarios import usuarios_service
 from apps.usuarios.models import User
@@ -108,9 +110,19 @@ class ConviteForm(TablerFormMixin, forms.Form):
         label='Validade (dias)', min_value=1, max_value=90,
         initial=usuarios_service.VALIDADE_PADRAO_DIAS,
     )
+    colaborador = forms.ModelChoiceField(
+        label='Colaborador', required=False, queryset=Colaborador.objects.none(),
+        empty_label='Nenhum (sem vínculo)',
+        help_text='Opcional. O usuário criado no aceite fica vinculado a este colaborador. '
+                  'Só aparecem colaboradores ativos e sem usuário.',
+    )
     enviar_por_email = forms.BooleanField(
         label='Enviar o convite por e-mail agora', required=False, initial=True,
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['colaborador'].queryset = colaboradores_service.colaboradores_vinculaveis()
 
     def clean_email(self):
         return User.objects.normalize_email(self.cleaned_data['email'])

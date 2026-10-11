@@ -27,6 +27,8 @@
           <dt class="col-sm-4">Usado em</dt>
           <dd class="col-sm-8">{{ convite.usado_em|date:"d/m/Y H:i" }}</dd>
           {% endif %}
+          <dt class="col-sm-4">Colaborador</dt>
+          <dd class="col-sm-8">{{ convite.colaborador|default:"Nenhum (sem vínculo)" }}</dd>
           <dt class="col-sm-4">Criado por</dt>
           <dd class="col-sm-8">{{ convite.criado_por|default:"—" }} em {{ convite.criado_em|date:"d/m/Y H:i" }}</dd>
         </dl>

@@ -26,6 +26,7 @@
           {% endfor %}
           {% include "includes/_campo.html" with campo=form.email %}
           {% include "includes/_campo.html" with campo=form.validade_dias %}
+          {% include "includes/_campo.html" with campo=form.colaborador %}
           <label class="form-check">
             {{ form.enviar_por_email }}
             <span class="form-check-label">{{ form.enviar_por_email.label }}</span>
@@ -57,7 +58,12 @@
           <tbody>
             {% for convite in convites %}
             <tr>
-              <td><a href="{% url 'usuarios:convite_detalhe' convite.pk %}">{{ convite.email }}</a></td>
+              <td>
+                <a href="{% url 'usuarios:convite_detalhe' convite.pk %}">{{ convite.email }}</a>
+                {% if convite.colaborador %}
+                  <div class="small text-secondary"><i class="fa-solid fa-link me-1"></i>{{ convite.colaborador }}</div>
+                {% endif %}
+              </td>
               <td>{% include "usuarios/_convite_estado.html" %}</td>
               <td class="text-secondary text-nowrap">
                 {% if convite.usado_em %}usado em {{ convite.usado_em|date:"d/m/Y H:i" }}{% else %}{{ convite.expira_em|date:"d/m/Y H:i" }}{% endif %}
