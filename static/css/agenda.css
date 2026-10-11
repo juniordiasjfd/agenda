@@ -8,3 +8,8 @@
 .dropdown-menu form {
   margin: 0;
 }
+
+/* Alpine: some até o componente iniciar (e de vez sem JavaScript). */
+[x-cloak] {
+  display: none !important;
+}

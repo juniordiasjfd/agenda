@@ -3,6 +3,7 @@ opções de colaborador/tipo/situação."""
 
 import pytest
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.ausencias import ausencias_service
 from apps.ausencias.forms import BasePeriodoFormSet
@@ -41,6 +42,7 @@ def ausencia(colaborador, ferias, gestor):
 
 def dados_edicao(ausencia, *linhas, **kwargs):
     kwargs.setdefault('iniciais', ausencia.periodos.count())
+    kwargs.setdefault('versao', ausencia.atualizado_em.isoformat())
     return dados_formulario(
         kwargs.pop('colaborador', ausencia.colaborador), kwargs.pop('tipo', ausencia.tipo), *linhas, **kwargs,
     )
@@ -384,3 +386,99 @@ def test_editar_ausencia_na_lixeira_redireciona(gestor_client, ausencia, gestor)
 
 def test_editar_inexistente_404(gestor_client):
     assert gestor_client.get(reverse('ausencias:editar', args=[999999])).status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Trava otimista
+# ---------------------------------------------------------------------------
+def test_editar_com_versao_desatualizada_recusa_e_mantem_o_digitado(gestor_client, ausencia, admin):
+    versao_aberta = ausencia.atualizado_em.isoformat()
+    primeiro, segundo = ausencia.periodos.all()
+    # Outra pessoa salva no meio tempo.
+    ausencias_service.atualizar_ausencia(
+        ausencia, ausencia.colaborador, ausencia.tipo,
+        [ausencias_service.PeriodoInformado(p.data_inicio, p.data_fim, p.situacao, p.pk) for p in (primeiro, segundo)],
+        'Do outro', admin,
+    )
+
+    response = gestor_client.post(url_editar(ausencia), dados_edicao(
+        ausencia,
+        linha('03/03/2026', '06/03/2026', id=primeiro.pk),
+        linha('16/03/2026', '20/03/2026', id=segundo.pk),
+        observacoes='Minha',
+        versao=versao_aberta,
+    ))
+
+    assert response.status_code == 200
+    assert list(response.context['cabecalho'].non_field_errors()) == [
+        'Esta ausência foi alterada por outra pessoa. Recarregue e refaça a edição.'
+    ]
+    html = response.content.decode()
+    assert 'Minha' in html and 'value="2026-03-03"' in html
+    ausencia.refresh_from_db()
+    assert ausencia.observacoes == 'Do outro'
+
+
+def test_editar_sem_versao_recusado(gestor_client, ausencia):
+    primeiro, segundo = ausencia.periodos.all()
+
+    response = gestor_client.post(url_editar(ausencia), dados_edicao(
+        ausencia, linha('02/03/2026', '06/03/2026', id=primeiro.pk), versao='lixo',
+    ))
+
+    assert response.context['cabecalho'].non_field_errors()
+    assert ausencia.periodos.count() == 2
+
+
+def test_alteracao_entre_validacao_e_gravacao_recusada(gestor_client, monkeypatch, ausencia, admin):
+    """A tela validou com a versão atual, mas outra gravação entrou antes da
+    trava: o serviço recusa e a mensagem é a mesma."""
+    clean_original = BasePeriodoFormSet.clean
+
+    def clean_e_outro_salva(self):
+        clean_original(self)
+        type(ausencia).todos.filter(pk=ausencia.pk).update(observacoes='Do outro', atualizado_em=timezone.now())
+
+    monkeypatch.setattr(BasePeriodoFormSet, 'clean', clean_e_outro_salva)
+    primeiro, segundo = ausencia.periodos.all()
+
+    response = gestor_client.post(url_editar(ausencia), dados_edicao(
+        ausencia, linha('02/03/2026', '06/03/2026', id=primeiro.pk), observacoes='Minha',
+    ))
+
+    assert response.status_code == 200
+    assert list(response.context['cabecalho'].non_field_errors()) == [
+        'Esta ausência foi alterada por outra pessoa. Recarregue e refaça a edição.'
+    ]
+    assert ausencia.periodos.count() == 2
+
+
+def test_formulario_de_edicao_leva_a_versao(gestor_client, ausencia):
+    html = gestor_client.get(url_editar(ausencia)).content.decode()
+
+    assert f'value="{ausencia.atualizado_em.isoformat()}"' in html
+
+
+# ---------------------------------------------------------------------------
+# Linhas dinâmicas (estrutura que o Alpine usa)
+# ---------------------------------------------------------------------------
+def test_tela_tem_linha_modelo_e_data_de_hoje(gestor_client):
+    html = gestor_client.get(URL_REGISTRAR).content.decode()
+
+    assert 'x-ref="modelo"' in html
+    assert 'periodos-__prefix__-data_inicio' in html
+    assert f'data-hoje="{timezone.localdate():%Y-%m-%d}"' in html
+    assert 'periodosForm(12)' in html
+
+
+def test_linha_removida_continua_oculta_e_marcada_apos_erro(gestor_client, colaborador, ferias):
+    response = gestor_client.post(URL_REGISTRAR, dados_formulario(
+        colaborador, ferias,
+        linha('', ''),
+        linha('02/03/2026', '06/03/2026', remover=True),
+    ))
+
+    html = response.content.decode()
+    assert 'name="periodos-1-DELETE" class="form-check-input" checked' in html
+    linhas = response.context['periodos'].linhas()
+    assert [numero for _, numero in linhas] == [1, None]

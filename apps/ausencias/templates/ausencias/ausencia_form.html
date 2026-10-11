@@ -1,6 +1,13 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}{% if ausencia %}Editar ausência{% else %}Registrar ausência{% endif %} — Agenda{% endblock %}
+
+{% block extra_css %}
+{# Tom Select 2.6.2 (CDN, versão fixada + SRI): busca do colaborador sem acentos. #}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.6.2/dist/css/tom-select.bootstrap5.min.css"
+      integrity="sha384-qNqaCnsmyTrYVwmqv4/4PcwMK8ZFAQnYPpVjWor+6cX6rKsPhebzu8vO2J3s+VZg" crossorigin="anonymous">
+{% endblock %}
 
 {% block page_header %}
 <div class="page-header d-print-none">
@@ -18,6 +25,7 @@
 {% block content %}
 <form method="post" novalidate id="form-ausencia">
   {% csrf_token %}
+  {% if ausencia %}{{ cabecalho.versao }}{% endif %}
   <div class="row row-cards">
     <div class="col-lg-4">
       <div class="card">
@@ -34,18 +42,31 @@
     </div>
 
     <div class="col-lg-8">
-      <div class="card">
-        <div class="card-header"><h3 class="card-title">Períodos</h3></div>
+      <div class="card" x-data="periodosForm({{ max_periodos }})" data-hoje="{{ hoje|date:'Y-m-d' }}">
+        <div class="card-header">
+          <h3 class="card-title">Períodos</h3>
+          <div class="card-actions text-secondary small" x-cloak x-show="true">
+            <span x-text="ativas"></span> de {{ max_periodos }}
+          </div>
+        </div>
         <div class="card-body">
           {{ periodos.management_form }}
           {% for erro in periodos.non_form_errors %}
             <div class="alert alert-danger" role="alert">{{ erro }}</div>
           {% endfor %}
-          <div id="periodos">
+          <div x-ref="lista">
             {% for form, numero in periodos.linhas %}
               {% include "ausencias/_linha_periodo.html" %}
             {% endfor %}
           </div>
+          <template x-ref="modelo">
+            {% include "ausencias/_linha_periodo.html" with form=periodos.empty_form numero="" %}
+          </template>
+          <button type="button" class="btn btn-outline-primary" x-cloak x-show="true"
+                  @click="adicionar()" :disabled="ativas >= maximo">
+            <i class="fa-solid fa-plus me-2"></i>Adicionar período
+          </button>
+          <span class="text-secondary small ms-2" x-cloak x-show="ativas >= maximo">Limite de {{ max_periodos }} períodos.</span>
         </div>
         <div class="card-footer d-flex">
           <a href="{% url 'ausencias:lista' %}" class="btn btn-link">Cancelar</a>
@@ -57,4 +78,10 @@
     </div>
   </div>
 </form>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.6.2/dist/js/tom-select.complete.min.js"
+        integrity="sha384-1mYKSrq1Nu5YJmWrIU9cvwWQlUyyukJJM9XMkAxY03nb/T69CK+Sn7rjFxVU3SSM" crossorigin="anonymous"></script>
+<script src="{% static 'js/ausencia_form.js' %}"></script>
 {% endblock %}

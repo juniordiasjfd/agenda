@@ -38,6 +38,8 @@ class AusenciaFormMixin(GestorMixin):
         if valido:
             try:
                 ausencia = self.gravar(cabecalho.cleaned_data, periodos.periodos_informados)
+            except ausencias_service.AusenciaAlterada:
+                cabecalho.add_error(None, ausencias_service.MENSAGEM_ALTERADA_POR_OUTRO)
             except ausencias_service.ErroValidacaoAusencia as erro:
                 periodos.aplicar_erros(erro)
             else:
@@ -51,6 +53,7 @@ class AusenciaFormMixin(GestorMixin):
             'periodos': periodos,
             'ausencia': self.ausencia,
             'hoje': timezone.localdate(),
+            'max_periodos': ausencias_service.MAX_PERIODOS,
             'active_nav': 'registrar' if self.ausencia is None else 'ausencias',
         })
 
@@ -81,6 +84,7 @@ class AusenciaEditarView(AusenciaFormMixin, View):
     def gravar(self, dados, periodos):
         return ausencias_service.atualizar_ausencia(
             self.ausencia, dados['colaborador'], dados['tipo'], periodos, dados['observacoes'], self.request.user,
+            versao=dados['versao'],
         )
 
     def mensagem_sucesso(self, ausencia):

@@ -4,6 +4,8 @@ Só traduzem a tela para ``PeriodoInformado`` e os erros do serviço de volta
 para campos e linhas: as regras ficam em ``ausencias_service``.
 """
 
+from datetime import datetime
+
 from django import forms
 
 from apps.ausencias import ausencias_service
@@ -36,7 +38,13 @@ class NomeAtivoChoiceField(forms.ModelChoiceField):
 
 class CabecalhoAusenciaForm(TablerFormMixin, forms.Form):
     """Colaborador, tipo e observações. ``ausencia`` (edição) mantém nas
-    opções o colaborador e o tipo atuais, mesmo se inativos."""
+    opções o colaborador e o tipo atuais, mesmo se inativos.
+
+    Na edição há também ``versao`` (oculto): o ``atualizado_em`` de quando a
+    tela foi aberta. Se a ausência mudou desde então, o envio é recusado
+    (trava otimista) sem perder o que foi digitado; o serviço repete a
+    verificação com a ausência travada.
+    """
     colaborador = ColaboradorChoiceField(queryset=None, label='Colaborador', empty_label='Selecione...')
     tipo = NomeAtivoChoiceField(queryset=None, label='Tipo', empty_label='Selecione...')
     observacoes = forms.CharField(label='Observações', required=False, widget=forms.Textarea(attrs={'rows': 3}))
@@ -46,6 +54,19 @@ class CabecalhoAusenciaForm(TablerFormMixin, forms.Form):
         self.ausencia = ausencia
         self.fields['colaborador'].queryset = ausencias_service.colaboradores_para_escolha(ausencia)
         self.fields['tipo'].queryset = ausencias_service.tipos_para_escolha(ausencia)
+        if ausencia is not None:
+            self.fields['versao'] = forms.CharField(required=False, widget=forms.HiddenInput)
+
+    def clean(self):
+        dados = super().clean()
+        if self.ausencia is not None:
+            try:
+                dados['versao'] = datetime.fromisoformat(dados.get('versao') or '')
+            except ValueError:
+                dados['versao'] = None
+            if dados['versao'] != self.ausencia.atualizado_em:
+                self.add_error(None, ausencias_service.MENSAGEM_ALTERADA_POR_OUTRO)
+        return dados
 
 
 class PeriodoForm(TablerFormMixin, forms.Form):
@@ -165,6 +186,7 @@ def montar_formularios(data=None, ausencia=None, usuario=None):
             'colaborador': ausencia.colaborador_id,
             'tipo': ausencia.tipo_id,
             'observacoes': ausencia.observacoes,
+            'versao': ausencia.atualizado_em.isoformat(),
         }
         inicial_periodos = [
             {'id': p.pk, 'data_inicio': p.data_inicio, 'data_fim': p.data_fim, 'situacao': p.situacao_id}
