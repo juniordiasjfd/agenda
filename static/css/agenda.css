@@ -109,3 +109,13 @@
   background: rgba(var(--tblr-yellow-rgb), .35);
   color: inherit;
 }
+
+/* Listas colapsáveis da prévia da importação: <details> funciona sem JavaScript. */
+details.card > summary { cursor: pointer; list-style: none; }
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary::before {
+  content: "\f054"; font-family: "Font Awesome 6 Free"; font-weight: 900;
+  font-size: .7rem; margin-right: .6rem; transition: transform .15s;
+}
+details.card[open] > summary::before { transform: rotate(90deg); }
+details.card:not([open]) > summary { border-bottom: 0; }

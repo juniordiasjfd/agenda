@@ -62,6 +62,7 @@ def test_paginas_principais_nao_mostram_marcas_de_comentario(client, admin, ause
         reverse('ausencias:editar', args=[ausencia.pk]),
         reverse('ausencias:excluir', args=[ausencia.pk]),
         reverse('ausencias:lixeira'),
+        reverse('ausencias:importar'),
         reverse('colaboradores:colaboradores'),
         reverse('colaboradores:departamentos'),
         reverse('usuarios:pendentes'),

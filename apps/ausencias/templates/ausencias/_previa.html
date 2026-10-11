@@ -1,0 +1,229 @@
+{# Prévia da importação (trocada por HTMX ao recalcular). Contexto: importacao, analise, contagens, categorias, a_importar. #}
+<div id="previa">
+  <p class="text-secondary">
+    <i class="fa-solid fa-arrow-down-a-z me-1"></i>
+    Arquivos lidos em ordem alfabética do nome; em sobreposição, vale a linha mais antiga nessa ordem.
+    Nada foi gravado ainda.
+  </p>
+
+  {# ---- Arquivos ---- #}
+  <div class="card mb-3">
+    <div class="table-responsive">
+      <table class="table table-vcenter card-table">
+        <thead>
+          <tr><th>Arquivo</th><th>Codificação</th><th>Separador</th><th class="text-end">Registros</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for arquivo in analise.arquivos %}
+          <tr>
+            <td class="text-break">{{ arquivo.nome }}</td>
+            <td>{{ arquivo.codificacao|default:"—" }}</td>
+            <td class="font-monospace">{{ arquivo.separador|default:"—" }}</td>
+            <td class="text-end">{{ arquivo.registros|length }}</td>
+            <td>
+              {% if arquivo.erro %}
+                <span class="text-danger"><i class="fa-solid fa-circle-xmark me-1"></i>{{ arquivo.erro }}</span>
+              {% else %}
+                <span class="text-success"><i class="fa-solid fa-circle-check me-1"></i>Lido</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# ---- Contagens ---- #}
+  <div class="row row-cards mb-3">
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card card-sm"><div class="card-body">
+        <div class="h1 mb-0 text-success" id="contagem-importar">{{ contagens.importar }}</div>
+        <div class="text-secondary">período{{ contagens.importar|pluralize }} a importar</div>
+      </div></div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card card-sm"><div class="card-body">
+        <div class="h1 mb-0">{{ contagens.ausencias }}</div>
+        <div class="text-secondary">ausência{{ contagens.ausencias|pluralize:"s" }} a criar</div>
+      </div></div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card card-sm"><div class="card-body">
+        <div class="h1 mb-0 text-secondary">{{ contagens.duplicata }}</div>
+        <div class="text-secondary">duplicata{{ contagens.duplicata|pluralize }} ignorada{{ contagens.duplicata|pluralize }}</div>
+      </div></div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card card-sm"><div class="card-body">
+        <div class="h1 mb-0 {% if contagens.sobreposicao %}text-warning{% endif %}">{{ contagens.sobreposicao }}</div>
+        <div class="text-secondary">sobreposiç{{ contagens.sobreposicao|pluralize:"ão,ões" }}</div>
+      </div></div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card card-sm"><div class="card-body">
+        <div class="h1 mb-0 {% if contagens.invalida %}text-danger{% endif %}">{{ contagens.invalida }}</div>
+        <div class="text-secondary">inválida{{ contagens.invalida|pluralize }}</div>
+      </div></div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card card-sm"><div class="card-body">
+        <div class="h1 mb-0 {% if contagens.pendente %}text-orange{% endif %}">{{ contagens.pendente }}</div>
+        <div class="text-secondary">pendente{{ contagens.pendente|pluralize }} de cadastro</div>
+      </div></div>
+    </div>
+  </div>
+
+  {# ---- Pendências de cadastro ---- #}
+  {% if analise.pendencias.colaboradores or analise.pendencias.tipos or analise.pendencias.situacoes %}
+  <div class="card mb-3">
+    <div class="card-header"><h3 class="card-title">Pendências de cadastro</h3></div>
+    {% url 'ausencias:importacao_previa' importacao.pk as url_previa %}
+    <form method="post" action="{{ url_previa }}" hx-post="{{ url_previa }}" hx-trigger="change"
+          hx-target="#previa" hx-swap="outerHTML">
+      {% csrf_token %}
+      <div class="card-body">
+        <p class="text-secondary">
+          Marque o que a importação deve criar. Colaborador novo entra ativo e sem departamento; tipo novo, com cor
+          neutra; situação nova, contando como ausência. Ajuste depois no cadastro ou no /admin/.
+        </p>
+        <div class="row">
+          {% if analise.pendencias.colaboradores %}
+          <div class="col-md-4">
+            <div class="form-label">Colaboradores</div>
+            {% for pendencia in analise.pendencias.colaboradores %}
+              {% include "ausencias/_pendencia.html" %}
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% if analise.pendencias.tipos %}
+          <div class="col-md-4">
+            <div class="form-label">Tipos</div>
+            {% for pendencia in analise.pendencias.tipos %}
+              {% include "ausencias/_pendencia.html" %}
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% if analise.pendencias.situacoes %}
+          <div class="col-md-4">
+            <div class="form-label">Situações</div>
+            {% for pendencia in analise.pendencias.situacoes %}
+              {% include "ausencias/_pendencia.html" %}
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-footer">
+        <button type="submit" class="btn">
+          <i class="fa-solid fa-rotate me-2"></i>Recalcular prévia
+        </button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+  {# ---- A importar ---- #}
+  <details class="card mb-3" {% if contagens.importar and contagens.importar <= 50 %}open{% endif %}>
+    <summary class="card-header">
+      <h3 class="card-title">A importar <span class="badge bg-green-lt ms-2">{{ contagens.importar }}</span></h3>
+    </summary>
+    {% if a_importar %}
+    <div class="table-responsive">
+      <table class="table table-vcenter card-table">
+        <thead><tr><th>Colaborador</th><th>Tipo</th><th>Código</th><th>Períodos</th><th>Observações</th></tr></thead>
+        <tbody>
+          {% for colaborador, grupos in a_importar %}
+            {% for grupo in grupos %}
+            <tr>
+              <td>{% if forloop.first %}{{ colaborador }}{% endif %}</td>
+              <td>{{ grupo.tipo }}</td>
+              <td class="font-monospace">
+                {% if grupo.codigo %}{{ grupo.codigo }}{% else %}<span class="text-secondary">novo</span>{% endif %}
+              </td>
+              <td class="small text-nowrap">
+                {% for linha in grupo.linhas %}
+                  <div>{{ linha.data_inicio|date:"d/m/Y" }} a {{ linha.data_fim|date:"d/m/Y" }}
+                    <span class="text-secondary">({{ linha.dias }} d, {{ linha.situacao }})</span></div>
+                {% endfor %}
+              </td>
+              <td class="small">
+                {{ grupo.observacoes|truncatechars:80 }}
+                {% for aviso in grupo.avisos %}
+                  <div class="text-warning"><i class="fa-solid fa-triangle-exclamation me-1"></i>{{ aviso }}</div>
+                {% endfor %}
+              </td>
+            </tr>
+            {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if a_importar_restante %}
+      <div class="card-footer text-secondary">E mais {{ a_importar_restante }} período{{ a_importar_restante|pluralize }} não exibido{{ a_importar_restante|pluralize }}.</div>
+    {% endif %}
+    {% else %}
+    <div class="card-body text-secondary">Nenhuma linha a importar.</div>
+    {% endif %}
+  </details>
+
+  {# ---- Não importadas e duplicatas ---- #}
+  {% for bloco in categorias %}
+  {% if bloco.total %}
+  <details class="card mb-3" id="categoria-{{ bloco.categoria }}">
+    <summary class="card-header">
+      <h3 class="card-title">{{ bloco.titulo }} <span class="badge bg-secondary-lt ms-2">{{ bloco.total }}</span></h3>
+    </summary>
+    <div class="table-responsive">
+      <table class="table table-vcenter card-table table-sm">
+        <thead><tr><th>Arquivo</th><th class="text-end">Linha</th><th>Colaborador</th><th>Tipo</th><th>Datas</th><th>Motivo</th></tr></thead>
+        <tbody>
+          {% for linha in bloco.linhas %}
+          <tr>
+            <td class="text-break small">{{ linha.arquivo }}</td>
+            <td class="text-end">{{ linha.linha }}</td>
+            <td>{{ linha.registro.colaborador }}</td>
+            <td>{{ linha.registro.tipo }}</td>
+            <td class="small text-nowrap">{{ linha.registro.brutos.DataInicio }} a {{ linha.registro.brutos.DataFim }}</td>
+            <td class="small">{{ linha.motivo }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if bloco.restante %}
+      <div class="card-footer text-secondary">
+        E mais {{ bloco.restante }} linha{{ bloco.restante|pluralize }}{% if bloco.categoria != 'duplicata' %}: baixe o CSV de linhas não importadas{% endif %}.
+      </div>
+    {% endif %}
+  </details>
+  {% endif %}
+  {% endfor %}
+
+  {# ---- Ações ---- #}
+  <div class="card">
+    <div class="card-body d-flex flex-wrap gap-2 align-items-center">
+      <form method="post" action="{% url 'ausencias:importacao_confirmar' importacao.pk %}" class="m-0">
+        {% csrf_token %}
+        <input type="hidden" name="assinatura" value="{{ analise.assinatura }}">
+        {% for entidade, chaves in analise.decisoes.items %}
+          {% for chave in chaves %}<input type="hidden" name="criar_{{ entidade }}" value="{{ chave }}">{% endfor %}
+        {% endfor %}
+        <button type="submit" class="btn btn-primary" id="confirmar-importacao" {% if not analise.tem_o_que_importar %}disabled{% endif %}>
+          <i class="fa-solid fa-file-import me-2"></i>
+          {% if analise.tem_o_que_importar %}
+            Confirmar importação: {{ contagens.importar }} período{{ contagens.importar|pluralize }} em {{ contagens.ausencias }} ausência{{ contagens.ausencias|pluralize:"s" }}{% if contagens.criar_colaboradores or contagens.criar_tipos or contagens.criar_situacoes %}, criando {{ contagens.criar_colaboradores }} colaborador{{ contagens.criar_colaboradores|pluralize:"es" }}, {{ contagens.criar_tipos }} tipo{{ contagens.criar_tipos|pluralize }} e {{ contagens.criar_situacoes }} situaç{{ contagens.criar_situacoes|pluralize:"ão,ões" }}{% endif %}
+          {% else %}
+            Nada a importar
+          {% endif %}
+        </button>
+      </form>
+      <form method="post" action="{% url 'ausencias:importacao_cancelar' importacao.pk %}" class="m-0">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-danger">
+          <i class="fa-solid fa-xmark me-2"></i>Cancelar importação
+        </button>
+      </form>
+    </div>
+  </div>
+</div>

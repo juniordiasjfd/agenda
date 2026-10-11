@@ -16,6 +16,12 @@ urlpatterns = [
     path('<int:pk>/apagar/', views.AusenciaApagarView.as_view(), name='apagar'),
     path('lixeira/', views.LixeiraView.as_view(), name='lixeira'),
     # Fragmento HTMX da tela de registro/edição (linha do ano + avisos).
+    # Importação de CSV: só administrador.
+    path('importar/', views.ImportarCSVView.as_view(), name='importar'),
+    path('importar/<uuid:pk>/', views.PreviaImportacaoView.as_view(), name='importacao_previa'),
+    path('importar/<uuid:pk>/confirmar/', views.ConfirmarImportacaoView.as_view(), name='importacao_confirmar'),
+    path('importar/<uuid:pk>/cancelar/', views.CancelarImportacaoView.as_view(), name='importacao_cancelar'),
+    path('importar/<uuid:pk>/resultado/', views.ResultadoImportacaoView.as_view(), name='importacao_resultado'),
     path('prechecagem/', views.PrechecagemView.as_view(), name='prechecagem'),
     path('<int:pk>/prechecagem/', views.PrechecagemView.as_view(), name='prechecagem_edicao'),
 ]

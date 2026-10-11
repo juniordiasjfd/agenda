@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Importar CSV — Agenda{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="page-pretitle"><a href="{% url 'ausencias:lista' %}">Ausências</a></div>
+    <h2 class="page-title">Importar CSV</h2>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card">
+      <form method="post" enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+        <div class="card-body">
+          <p>
+            Envie um ou mais arquivos no formato da exportação (e do formulário antigo): uma linha por período, com as
+            colunas <span class="font-monospace">Colaborador</span>, <span class="font-monospace">TipoEvento</span>,
+            <span class="font-monospace">DataInicio</span> e <span class="font-monospace">DataFim</span>
+            (<span class="font-monospace">Situacao</span>, <span class="font-monospace">SolicitacaoID</span> e
+            <span class="font-monospace">Observacoes</span> são opcionais). Nada é gravado antes da prévia.
+          </p>
+          <div class="alert alert-info" role="alert">
+            <i class="fa-solid fa-arrow-down-a-z me-2"></i>
+            Os arquivos são lidos em <strong>ordem alfabética do nome</strong> e as linhas na ordem do arquivo.
+            Se duas linhas se sobrepõem, <strong>vale a mais antiga</strong> nessa ordem; a outra não é importada.
+          </div>
+          {% include "includes/_campo.html" with campo=form.arquivos %}
+          <small class="form-hint">
+            Até {{ limites.arquivos }} arquivos por envio, {{ limites.megas }} MB e {{ limites.registros }} registros
+            por arquivo, extensão .csv ou .txt. Separador ; ou , e codificação UTF-8 ou Windows-1252 são detectados.
+          </small>
+        </div>
+        <div class="card-footer d-flex">
+          <a href="{% url 'ausencias:lista' %}" class="btn btn-link">Voltar</a>
+          <button type="submit" class="btn btn-primary ms-auto">
+            <i class="fa-solid fa-magnifying-glass me-2"></i>Ver prévia
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

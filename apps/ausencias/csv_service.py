@@ -495,6 +495,45 @@ class Analise:
         return sorted(por_nome.items(), key=lambda item: normalizar_nome(item[0]))
 
 
+def decisoes_do_formulario(dados):
+    """Decisões vindas da tela (caixas ``criar_colaboradores`` etc.)."""
+    return normalizar_decisoes({entidade: dados.getlist(f'criar_{entidade}') for entidade in ENTIDADES})
+
+
+# Linhas exibidas por categoria na prévia; o resto vai pelo CSV de não importadas.
+LIMITE_EXIBICAO = 500
+
+
+def blocos_da_previa(analise, limite=LIMITE_EXIBICAO):
+    """Listas da prévia, cada uma com no máximo ``limite`` linhas:
+    ``categorias`` (sobreposições, inválidas, pendentes, duplicatas) e
+    ``a_importar`` (``[(colaborador, [grupos])]``, cortado por linhas)."""
+    titulos = [
+        (SOBREPOSICAO, 'Sobreposições (não importadas)'),
+        (INVALIDA, 'Inválidas (não importadas)'),
+        (PENDENTE, 'Pendentes de cadastro (não importadas)'),
+        (DUPLICATA, 'Duplicatas (ignoradas)'),
+    ]
+    categorias = []
+    for categoria, titulo in titulos:
+        linhas = analise.da_categoria(categoria)
+        categorias.append({
+            'categoria': categoria, 'titulo': titulo, 'total': len(linhas),
+            'linhas': linhas[:limite], 'restante': max(len(linhas) - limite, 0),
+        })
+    a_importar, exibidas = [], 0
+    for colaborador, grupos in analise.grupos_por_colaborador():
+        if exibidas >= limite:
+            break
+        a_importar.append((colaborador, grupos))
+        exibidas += sum(len(grupo.linhas) for grupo in grupos)
+    return {
+        'categorias': categorias,
+        'a_importar': a_importar,
+        'a_importar_restante': max(analise.contagens[IMPORTAR] - exibidas, 0),
+    }
+
+
 def normalizar_decisoes(decisoes):
     """``{'colaboradores'|'tipos'|'situacoes': [chaves normalizadas]}``,
     sem repetição e em ordem (o que fica guardado na ImportacaoCSV)."""

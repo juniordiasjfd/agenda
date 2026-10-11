@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Importação concluída — Agenda{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="page-pretitle"><a href="{% url 'ausencias:importar' %}">Importar CSV</a></div>
+    <h2 class="page-title">Importação concluída</h2>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card mb-3">
+  <div class="card-body">
+    <p class="mb-2">
+      Aplicada em {{ importacao.aplicada_em|date:"d/m/Y H:i" }} por {{ importacao.atualizado_por.get_short_name|default:"—" }}.
+    </p>
+    <ul class="mb-0">
+      <li><strong>{{ contagens.importar }}</strong> período{{ contagens.importar|pluralize }} importado{{ contagens.importar|pluralize }} em <strong>{{ contagens.ausencias }}</strong> ausência{{ contagens.ausencias|pluralize:"s" }}</li>
+      <li>{{ contagens.duplicata }} duplicata{{ contagens.duplicata|pluralize }} ignorada{{ contagens.duplicata|pluralize }}</li>
+      <li>{{ contagens.sobreposicao }} sobreposiç{{ contagens.sobreposicao|pluralize:"ão,ões" }}, {{ contagens.invalida }} inválida{{ contagens.invalida|pluralize }} e {{ contagens.pendente }} pendente{{ contagens.pendente|pluralize }} de cadastro (não importadas)</li>
+      {% if contagens.arquivos_recusados %}<li>{{ contagens.arquivos_recusados }} arquivo{{ contagens.arquivos_recusados|pluralize }} recusado{{ contagens.arquivos_recusados|pluralize }}</li>{% endif %}
+      {% if resumo.criados.colaboradores %}<li>Colaboradores criados: {{ resumo.criados.colaboradores|join:", " }}</li>{% endif %}
+      {% if resumo.criados.tipos %}<li>Tipos criados: {{ resumo.criados.tipos|join:", " }} (ajuste a cor no /admin/)</li>{% endif %}
+      {% if resumo.criados.situacoes %}<li>Situações criadas: {{ resumo.criados.situacoes|join:", " }}</li>{% endif %}
+    </ul>
+  </div>
+  <div class="card-footer d-flex flex-wrap gap-2">
+    <a href="{% url 'ausencias:lista' %}" class="btn btn-primary">
+      <i class="fa-solid fa-list-ul me-2"></i>Ver ausências
+    </a>
+    <a href="{% url 'ausencias:importar' %}" class="btn">
+      <i class="fa-solid fa-file-import me-2"></i>Nova importação
+    </a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-vcenter card-table">
+      <thead><tr><th>Arquivo</th><th>Codificação</th><th>Separador</th><th class="text-end">Registros</th><th></th></tr></thead>
+      <tbody>
+        {% for arquivo in resumo.arquivos %}
+        <tr>
+          <td class="text-break">{{ arquivo.nome }}</td>
+          <td>{{ arquivo.codificacao|default:"—" }}</td>
+          <td class="font-monospace">{{ arquivo.separador|default:"—" }}</td>
+          <td class="text-end">{{ arquivo.registros }}</td>
+          <td>{% if arquivo.erro %}<span class="text-danger">{{ arquivo.erro }}</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

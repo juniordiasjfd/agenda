@@ -1,0 +1,9 @@
+{# Uma caixa de "criar cadastro" na prévia da importação. Contexto: pendencia. #}
+<label class="form-check">
+  <input class="form-check-input" type="checkbox" name="{{ pendencia.campo }}" value="{{ pendencia.chave }}"
+         {% if pendencia.marcada %}checked{% endif %}>
+  <span class="form-check-label">
+    Criar "{{ pendencia.nome }}"
+    <span class="text-secondary small">({{ pendencia.linhas }} linha{{ pendencia.linhas|pluralize }})</span>
+  </span>
+</label>

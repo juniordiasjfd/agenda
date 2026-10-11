@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Prévia da importação — Agenda{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="page-pretitle"><a href="{% url 'ausencias:importar' %}">Importar CSV</a></div>
+    <h2 class="page-title">Prévia da importação</h2>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+{% include "ausencias/_previa.html" %}
+{% endblock %}

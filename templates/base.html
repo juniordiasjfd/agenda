@@ -54,7 +54,7 @@
 
           {% if user.is_superuser %}
           {# ---- Só administrador ---- #}
-          {% if active_nav == 'pendentes' or active_nav == 'convites' or active_nav == 'departamentos' or active_nav == 'colaboradores' %}{% firstof 'show' as menu_admin_aberto %}{% endif %}
+          {% if active_nav == 'pendentes' or active_nav == 'convites' or active_nav == 'departamentos' or active_nav == 'colaboradores' or active_nav == 'importar' %}{% firstof 'show' as menu_admin_aberto %}{% endif %}
           <li class="nav-item dropdown{% if menu_admin_aberto %} active{% endif %}">
             <a class="nav-link dropdown-toggle {{ menu_admin_aberto }}" href="#menu-admin" data-bs-toggle="dropdown"
                data-bs-auto-close="false" role="button" aria-expanded="{% if menu_admin_aberto %}true{% else %}false{% endif %}">
@@ -79,6 +79,9 @@
               </a>
               <a class="dropdown-item{% if active_nav == 'departamentos' %} active{% endif %}" href="{% url 'colaboradores:departamentos' %}">
                 <i class="fa-solid fa-sitemap me-2"></i>Departamentos
+              </a>
+              <a class="dropdown-item{% if active_nav == 'importar' %} active{% endif %}" href="{% url 'ausencias:importar' %}">
+                <i class="fa-solid fa-file-import me-2"></i>Importar CSV
               </a>
               <a class="dropdown-item" href="{% url 'admin:index' %}">
                 <i class="fa-solid fa-gears me-2"></i>Admin do Django

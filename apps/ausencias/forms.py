@@ -281,3 +281,31 @@ class ConfirmarApagarForm(TablerFormMixin, forms.Form):
         if valor.upper() != self.ausencia.codigo.upper():
             raise forms.ValidationError('O código digitado não confere.')
         return valor
+
+
+class MultiplosArquivosInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+
+class MultiplosArquivosField(forms.FileField):
+    """Lista de arquivos. Arquivo vazio passa: a leitura do CSV o recusa
+    com mensagem na prévia, sem barrar os demais."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('widget', MultiplosArquivosInput(attrs={'accept': '.csv,.txt,text/csv,text/plain'}))
+        kwargs.setdefault('allow_empty_file', True)
+        super().__init__(*args, **kwargs)
+
+    def clean(self, data, initial=None):
+        if isinstance(data, (list, tuple)):
+            if not data:
+                return super().clean(None, initial)
+            return [super(MultiplosArquivosField, self).clean(arquivo, initial) for arquivo in data]
+        return [super().clean(data, initial)]
+
+
+class ImportarCSVForm(TablerFormMixin, forms.Form):
+    arquivos = MultiplosArquivosField(
+        label='Arquivos CSV',
+        error_messages={'required': 'Selecione pelo menos um arquivo.'},
+    )

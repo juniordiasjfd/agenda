@@ -12,8 +12,10 @@ from django.views import View
 from django.views.generic import DetailView, ListView
 
 from apps.ausencias import ausencias_service, csv_service
-from apps.ausencias.forms import ConfirmarApagarForm, FiltroAusenciasForm, FiltroLixeiraForm, montar_formularios
-from apps.ausencias.models import Ausencia
+from apps.ausencias.forms import (
+    ConfirmarApagarForm, FiltroAusenciasForm, FiltroLixeiraForm, ImportarCSVForm, montar_formularios,
+)
+from apps.ausencias.models import Ausencia, ImportacaoCSV
 from apps.core.permissions import AdministradorMixin, GestorMixin
 
 
@@ -371,3 +373,125 @@ class AusenciaApagarView(AdministradorMixin, View):
 
     def renderizar(self, ausencia, form):
         return render(self.request, self.template_name, {'ausencia': ausencia, 'form': form, 'active_nav': 'lixeira'})
+
+
+# ---------------------------------------------------------------------------
+# Importação de CSV (só administrador)
+# ---------------------------------------------------------------------------
+class ImportarCSVView(AdministradorMixin, View):
+    """Envio dos arquivos (POST) -> ``ImportacaoCSV`` -> prévia (PRG)."""
+    template_name = 'ausencias/importar.html'
+
+    def get(self, request):
+        return self.renderizar(ImportarCSVForm())
+
+    def post(self, request):
+        form = ImportarCSVForm(request.POST, request.FILES)
+        if not form.is_valid():
+            return self.renderizar(form)
+        importacao = csv_service.criar_importacao(form.cleaned_data['arquivos'], request.user)
+        return redirect('ausencias:importacao_previa', importacao.pk)
+
+    def renderizar(self, form):
+        limites = csv_service.limites()
+        limites['megas'] = f"{limites['bytes'] / (1024 * 1024):g}"
+        return render(self.request, self.template_name, {'form': form, 'limites': limites, 'active_nav': 'importar'})
+
+
+class ImportacaoMixin(AdministradorMixin):
+    def carregar(self, pk):
+        return get_object_or_404(ImportacaoCSV, pk=pk)
+
+    def indisponivel(self, importacao):
+        """Redirecionamento quando a importação não está mais pendente."""
+        if importacao.status == ImportacaoCSV.APLICADA:
+            return redirect('ausencias:importacao_resultado', importacao.pk)
+        try:
+            csv_service.verificar_disponivel(importacao)
+        except csv_service.ImportacaoIndisponivel as erro:
+            messages.warning(self.request, str(erro))
+            return redirect('ausencias:importar')
+        return None
+
+
+class PreviaImportacaoView(ImportacaoMixin, View):
+    """GET: prévia com as decisões guardadas. POST: recalcula com as caixas
+    marcadas (HTMX troca só a prévia; sem JavaScript, PRG)."""
+    template_name = 'ausencias/importacao_previa.html'
+    template_parcial = 'ausencias/_previa.html'
+
+    def get(self, request, pk):
+        importacao = self.carregar(pk)
+        return self.indisponivel(importacao) or self.renderizar(importacao, self.template_name)
+
+    def post(self, request, pk):
+        importacao = self.carregar(pk)
+        desvio = self.indisponivel(importacao)
+        if desvio:
+            return desvio
+        csv_service.salvar_decisoes(importacao, csv_service.decisoes_do_formulario(request.POST), request.user)
+        if request.headers.get('HX-Request'):
+            return self.renderizar(importacao, self.template_parcial)
+        return redirect('ausencias:importacao_previa', importacao.pk)
+
+    def renderizar(self, importacao, template):
+        analise = csv_service.analisar_importacao(importacao)
+        return render(self.request, template, {
+            'importacao': importacao,
+            'analise': analise,
+            'contagens': analise.contagens,
+            **csv_service.blocos_da_previa(analise),
+            'active_nav': 'importar',
+        })
+
+
+class ConfirmarImportacaoView(ImportacaoMixin, View):
+    http_method_names = ['post']
+
+    def post(self, request, pk):
+        importacao = self.carregar(pk)
+        decisoes = csv_service.decisoes_do_formulario(request.POST)
+        try:
+            importacao = csv_service.aplicar_importacao(
+                importacao, decisoes, request.POST.get('assinatura', ''), request.user,
+            )
+        except csv_service.PreviaDesatualizada:
+            csv_service.salvar_decisoes(importacao, decisoes, request.user)
+            messages.warning(request, 'Os dados mudaram desde a prévia e nada foi gravado. Confira a nova prévia.')
+            return redirect('ausencias:importacao_previa', importacao.pk)
+        except (csv_service.ImportacaoIndisponivel, csv_service.FalhaImportacao) as erro:
+            messages.error(request, str(erro))
+            return redirect('ausencias:importacao_previa', importacao.pk)
+        contagens = importacao.resumo['contagens']
+        messages.success(
+            request,
+            f"Importação concluída: {contagens['importar']} período(s) em {contagens['ausencias']} ausência(s).",
+        )
+        return redirect('ausencias:importacao_resultado', importacao.pk)
+
+
+class CancelarImportacaoView(ImportacaoMixin, View):
+    http_method_names = ['post']
+
+    def post(self, request, pk):
+        importacao = self.carregar(pk)
+        if importacao.status == ImportacaoCSV.PENDENTE:
+            csv_service.cancelar_importacao(importacao, request.user)
+            messages.info(request, 'Importação cancelada. Nada foi gravado.')
+        return redirect('ausencias:importar')
+
+
+class ResultadoImportacaoView(ImportacaoMixin, View):
+    template_name = 'ausencias/importacao_resultado.html'
+
+    def get(self, request, pk):
+        importacao = self.carregar(pk)
+        if importacao.status != ImportacaoCSV.APLICADA:
+            return redirect('ausencias:importacao_previa', importacao.pk)
+        resumo = importacao.resumo
+        return render(request, self.template_name, {
+            'importacao': importacao,
+            'resumo': resumo,
+            'contagens': resumo['contagens'],
+            'active_nav': 'importar',
+        })
