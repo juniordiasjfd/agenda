@@ -1,7 +1,7 @@
 /* Ajustes visuais da Agenda sobre o Tabler. */
 
 .agenda-public-body {
-  background: var(--tblr-bg-surface-secondary);
+  background: var(--tblr-bg-surface-secondary, #eef3f6);
 }
 
 /* O <form> do "Sair" dentro do dropdown não deve quebrar o alinhamento. */
@@ -27,86 +27,141 @@
 /* Linha do ano na tela de registro (ideia do legado/index.html). */
 .linha-ano { display: flex; flex-direction: column; gap: .4rem; }
 .linha-ano-meses, .linha-ano-linha { display: grid; grid-template-columns: 2.75rem 1fr; gap: .5rem; align-items: center; }
-.linha-ano-meses div { display: grid; grid-template-columns: repeat(12, 1fr); font-size: .65rem; color: var(--tblr-secondary); }
-.linha-ano-linha b { font-size: .75rem; font-weight: 500; color: var(--tblr-secondary); }
+.linha-ano-meses div { display: grid; grid-template-columns: repeat(12, 1fr); font-size: .65rem; color: var(--tblr-secondary, #6c7a91); }
+.linha-ano-linha b { font-size: .75rem; font-weight: 500; color: var(--tblr-secondary, #6c7a91); }
 .linha-ano-barra {
-  position: relative; height: 1.6rem; border: 1px solid var(--tblr-border-color); border-radius: 4px;
+  position: relative; height: 1.6rem; border: 1px solid var(--tblr-border-color, #dce1e7); border-radius: 4px;
   background: repeating-linear-gradient(90deg, transparent 0, transparent calc(8.3333% - 1px),
-    var(--tblr-border-color) calc(8.3333% - 1px), var(--tblr-border-color) 8.3333%);
+    var(--tblr-border-color, #dce1e7) calc(8.3333% - 1px), var(--tblr-border-color, #dce1e7) 8.3333%);
 }
 .linha-ano-seg { position: absolute; top: 3px; bottom: 3px; min-width: 3px; border-radius: 3px; }
 .linha-ano-seg.registrado { opacity: .85; }
-.linha-ano-seg.nao-conta { background-color: var(--tblr-gray-300) !important; }
-.linha-ano-seg.novo { background: var(--tblr-primary); top: 7px; bottom: 7px; }
-.linha-ano-seg.conflito { background: var(--tblr-danger); top: 7px; bottom: 7px; }
-.linha-ano-hoje { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--tblr-body-color); }
+.linha-ano-seg.nao-conta { background-color: var(--tblr-gray-300, #b8c4d4) !important; }
+.linha-ano-seg.novo { background: var(--tblr-primary, #066fd1); top: 7px; bottom: 7px; }
+.linha-ano-seg.conflito { background: var(--tblr-danger, #d63939); top: 7px; bottom: 7px; }
+.linha-ano-hoje { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--tblr-body-color, #182433); }
 .linha-ano-legenda { display: flex; flex-wrap: wrap; gap: .9rem; }
 .linha-ano-legenda i { display: inline-block; width: .65rem; height: .65rem; border-radius: 2px; margin-right: .3rem; vertical-align: -1px; }
-.linha-ano-legenda i.registrado { background: var(--tblr-gray-500); }
-.linha-ano-legenda i.novo { background: var(--tblr-primary); }
-.linha-ano-legenda i.conflito { background: var(--tblr-danger); }
-.linha-ano-legenda i.nao-conta { background: var(--tblr-gray-300); }
+.linha-ano-legenda i.registrado { background: var(--tblr-gray-500, #6c7a91); }
+.linha-ano-legenda i.novo { background: var(--tblr-primary, #066fd1); }
+.linha-ano-legenda i.conflito { background: var(--tblr-danger, #d63939); }
+.linha-ano-legenda i.nao-conta { background: var(--tblr-gray-300, #b8c4d4); }
 
 /* Tom Select (tema bootstrap5) sobre o Tabler.
- * O tema usa variáveis --bs-* (--bs-body-bg, --bs-tertiary-bg,
- * --bs-border-color...) que o Tabler não define (ele usa --tblr-*): sem este
- * bloco a lista de opções fica sem fundo e as cores fixas (#343a40) somem no
- * tema escuro. Nunca editar o CSS do CDN: os ajustes ficam aqui. */
+ *
+ * Causa do dropdown transparente: o tema usa variáveis --bs-* (--bs-body-bg,
+ * --bs-tertiary-bg, --bs-border-color...) que o Tabler 1.0 não define (ele
+ * usa --tblr-*), então "background: var(--bs-body-bg)" vira transparente. E o
+ * tema tem regras com o MESMO seletor das nossas (.ts-dropdown,
+ * .ts-dropdown.form-control...): se o CSS dele carregar depois deste, vence.
+ * Defesa em camadas:
+ *   1. o base.html carrega o agenda.css DEPOIS do CSS de terceiros da página
+ *      (bloco extra_css; teste em apps/core/tests/test_css.py);
+ *   2. as --bs-* que o tema usa são definidas aqui, mapeadas para --tblr-*
+ *      (sempre com reserva): o próprio tema passa a funcionar em qualquer
+ *      ordem;
+ *   3. seletores mais específicos que os do tema e, só no fundo do dropdown,
+ *      !important (anexado ao wrapper ou ao body via dropdownParent).
+ * Nunca editar o CSS do CDN: os ajustes ficam aqui. */
+.ts-wrapper,
+.ts-dropdown {
+  --bs-body-bg: var(--tblr-bg-forms, var(--tblr-bg-surface, #fff));
+  --bs-body-color: var(--tblr-body-color, #182433);
+  --bs-secondary-bg: var(--tblr-bg-surface-secondary, #f6f8fb);
+  --bs-tertiary-bg: rgba(var(--tblr-primary-rgb, 6, 111, 209), .14);
+  --bs-secondary-color: var(--tblr-secondary, #6c7a91);
+  --bs-border-color: var(--tblr-border-color, #dce1e7);
+  --bs-border-color-translucent: var(--tblr-border-color, #dce1e7);
+  --bs-border-width: var(--tblr-border-width, 1px);
+  --bs-border-radius: var(--tblr-border-radius, 4px);
+  --bs-border-radius-sm: var(--tblr-border-radius-sm, 2px);
+  --bs-border-radius-lg: var(--tblr-border-radius-lg, 8px);
+  --bs-form-invalid-color: var(--tblr-danger, #d63939);
+  --bs-form-valid-color: var(--tblr-success, #2fb344);
+}
+/* Reservas do tema escuro do Tabler (atributo data-bs-theme="dark" no
+ * <html>/<body> ou num contêiner), caso alguma --tblr-* falte. */
+[data-bs-theme=dark] .ts-wrapper,
+[data-bs-theme=dark] .ts-dropdown,
+[data-bs-theme=dark].ts-dropdown {
+  --bs-body-bg: var(--tblr-bg-forms, var(--tblr-bg-surface, #151f2c));
+  --bs-body-color: var(--tblr-body-color, #dce1e7);
+  --bs-secondary-bg: var(--tblr-bg-surface-secondary, #1b293a);
+  --bs-border-color: var(--tblr-border-color, #25384f);
+  --bs-border-color-translucent: var(--tblr-border-color, #25384f);
+}
+
 .ts-wrapper .ts-control,
 .ts-wrapper.single.input-active .ts-control,
 .ts-wrapper.full .ts-control {
-  background-color: var(--tblr-bg-forms, var(--tblr-bg-surface));
-  color: var(--tblr-body-color);
+  background-color: var(--tblr-bg-forms, var(--tblr-bg-surface, #fff));
+  color: var(--tblr-body-color, #182433);
 }
 .ts-wrapper .ts-control,
 .ts-wrapper .ts-control input {
-  color: var(--tblr-body-color);
+  color: var(--tblr-body-color, #182433);
 }
 .ts-wrapper .ts-control input::placeholder {
-  color: var(--tblr-secondary);
+  color: var(--tblr-secondary, #6c7a91);
 }
 .ts-wrapper.focus .ts-control {
-  border-color: var(--tblr-primary);
-  box-shadow: 0 0 0 .25rem rgba(var(--tblr-primary-rgb), .25);
+  border-color: var(--tblr-primary, #066fd1);
+  box-shadow: 0 0 0 .25rem rgba(var(--tblr-primary-rgb, 6, 111, 209), .25);
 }
-.ts-dropdown,
-.ts-dropdown.form-control,
-.ts-dropdown.form-select {
-  /* Acima de cards, menus e do modal do Bootstrap (1055). */
+
+/* Lista de opções: dentro do wrapper (padrão) ou anexada ao body
+ * (dropdownParent: 'body'). "body .ts-dropdown" (0,1,1) e
+ * ".ts-wrapper .ts-dropdown" (0,2,0) superam ".ts-dropdown" do tema. */
+body .ts-dropdown,
+.ts-wrapper .ts-dropdown,
+body .ts-dropdown.form-control,
+body .ts-dropdown.form-select {
+  /* Acima de cards, menus, colunas fixas do painel e do modal do Bootstrap (1055). */
   z-index: 1060;
-  background: var(--tblr-bg-surface);
-  color: var(--tblr-body-color);
-  border: var(--tblr-border-width) solid var(--tblr-border-color);
-  border-radius: var(--tblr-border-radius);
-  box-shadow: var(--tblr-box-shadow-dropdown);
+  color: var(--tblr-body-color, #182433);
+  border: var(--tblr-border-width, 1px) solid var(--tblr-border-color, #dce1e7);
+  border-radius: var(--tblr-border-radius, 4px);
+  box-shadow: var(--tblr-box-shadow-dropdown, 0 6px 12px rgba(0, 0, 0, .175));
 }
-.ts-dropdown .ts-dropdown-content {
+/* !important só no fundo: é o defeito que já escapou uma vez (fundo
+ * transparente mostrando o formulário por baixo). Opaco em qualquer ordem
+ * de carga ou especificidade dos CSS de terceiros. */
+body .ts-dropdown,
+body .ts-dropdown .ts-dropdown-content {
+  background-color: var(--tblr-bg-surface, #fff) !important;
+}
+[data-bs-theme=dark] .ts-dropdown,
+[data-bs-theme=dark] .ts-dropdown .ts-dropdown-content {
+  background-color: var(--tblr-bg-surface, #182433) !important;
+}
+body .ts-dropdown .ts-dropdown-content {
   max-height: 18rem;
 }
-.ts-dropdown .optgroup-header {
-  background: var(--tblr-bg-surface);
-  color: var(--tblr-secondary);
+body .ts-dropdown .optgroup-header {
+  background: var(--tblr-bg-surface, #fff);
+  color: var(--tblr-secondary, #6c7a91);
 }
-.ts-dropdown .option,
-.ts-dropdown .no-results {
-  color: var(--tblr-body-color);
+body .ts-dropdown .option,
+body .ts-dropdown .no-results {
+  color: var(--tblr-body-color, #182433);
 }
-.ts-dropdown .option:hover,
-.ts-dropdown .active {
+body .ts-dropdown .option:hover,
+body .ts-dropdown .active {
   /* --tblr-active-bg (4% no claro) é fraco demais para o realce do teclado. */
-  background-color: rgba(var(--tblr-primary-rgb), .14);
-  color: var(--tblr-body-color);
+  background-color: rgba(var(--tblr-primary-rgb, 6, 111, 209), .14);
+  color: var(--tblr-body-color, #182433);
 }
-.ts-dropdown .option.selected {
-  background-color: var(--tblr-primary);
+body .ts-dropdown .option.selected {
+  background-color: var(--tblr-primary, #066fd1);
   color: var(--tblr-primary-fg, #fff);
 }
-.ts-dropdown .option.selected.active {
-  background-color: var(--tblr-primary);
+body .ts-dropdown .option.selected.active {
+  background-color: var(--tblr-primary, #066fd1);
+  color: var(--tblr-primary-fg, #fff);
   filter: brightness(1.08);
 }
-.ts-dropdown [data-selectable] .highlight {
-  background: rgba(var(--tblr-yellow-rgb), .35);
+body .ts-dropdown [data-selectable] .highlight {
+  background: rgba(var(--tblr-yellow-rgb, 245, 159, 0), .35);
   color: inherit;
 }
 

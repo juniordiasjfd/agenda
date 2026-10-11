@@ -1,10 +1,14 @@
-{% load static %}
+{% load static agenda_static %}
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <title>{% block title %}Agenda{% endblock %}</title>
 {% include "includes/_head.html" %}
+{# CSS de terceiros da página (ex.: Tom Select): ANTES do agenda.css, para os overrides valerem. #}
 {% block extra_css %}{% endblock %}
+<link rel="stylesheet" href="{% static_versionado 'css/agenda.css' %}">
+{# CSS do projeto específico da página (ex.: painel.css). #}
+{% block page_css %}{% endblock %}
 </head>
 {# Token CSRF em toda requisição HTMX (POST/PUT/DELETE). #}
 <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>

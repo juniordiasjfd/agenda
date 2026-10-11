@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static agenda_static %}
 
 {% block title %}{% if ausencia %}Editar ausência{% else %}Registrar ausência{% endif %} — Agenda{% endblock %}
 
@@ -93,5 +93,5 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.6.2/dist/js/tom-select.complete.min.js"
         integrity="sha384-1mYKSrq1Nu5YJmWrIU9cvwWQlUyyukJJM9XMkAxY03nb/T69CK+Sn7rjFxVU3SSM" crossorigin="anonymous"></script>
-<script src="{% static 'js/ausencia_form.js' %}"></script>
+<script src="{% static_versionado 'js/ausencia_form.js' %}"></script>
 {% endblock %}
