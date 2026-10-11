@@ -10,5 +10,6 @@ urlpatterns = [
     path('', include('apps.usuarios.urls')),
     path('', include('apps.colaboradores.urls')),
     path('ausencias/', include('apps.ausencias.urls')),
+    path('painel/', include('apps.ausencias.urls_painel')),
     path('', include('apps.core.urls')),
 ]
