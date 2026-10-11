@@ -495,3 +495,20 @@ class ResultadoImportacaoView(ImportacaoMixin, View):
             'contagens': resumo['contagens'],
             'active_nav': 'importar',
         })
+
+
+class NaoImportadasView(ImportacaoMixin, View):
+    """CSV das linhas que não entram (sobreposição, inválida, pendente),
+    para corrigir e reenviar: da prévia (decisões atuais) ou, depois de
+    aplicada, do resumo guardado."""
+
+    def get(self, request, pk):
+        importacao = self.carregar(pk)
+        if importacao.status == ImportacaoCSV.APLICADA:
+            linhas = importacao.resumo.get('nao_importadas', [])
+        else:
+            desvio = self.indisponivel(importacao)
+            if desvio:
+                return desvio
+            linhas = [linha.para_nao_importada() for linha in csv_service.analisar_importacao(importacao).nao_importadas]
+        return resposta_csv(csv_service.csv_nao_importadas(linhas), csv_service.nome_arquivo_nao_importadas(importacao))

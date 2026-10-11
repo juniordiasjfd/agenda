@@ -22,6 +22,9 @@ urlpatterns = [
     path('importar/<uuid:pk>/confirmar/', views.ConfirmarImportacaoView.as_view(), name='importacao_confirmar'),
     path('importar/<uuid:pk>/cancelar/', views.CancelarImportacaoView.as_view(), name='importacao_cancelar'),
     path('importar/<uuid:pk>/resultado/', views.ResultadoImportacaoView.as_view(), name='importacao_resultado'),
+    path(
+        'importar/<uuid:pk>/nao-importadas/', views.NaoImportadasView.as_view(), name='importacao_nao_importadas',
+    ),
     path('prechecagem/', views.PrechecagemView.as_view(), name='prechecagem'),
     path('<int:pk>/prechecagem/', views.PrechecagemView.as_view(), name='prechecagem_edicao'),
 ]

@@ -967,3 +967,19 @@ def aplicar_importacao(importacao, decisoes, assinatura, usuario):
     )
     return importacao
 
+
+# ---------------------------------------------------------------------------
+# CSV de linhas não importadas
+# ---------------------------------------------------------------------------
+COLUNAS_NAO_IMPORTADAS = [*COLUNAS, 'Motivo', 'Arquivo', 'Linha']
+
+
+def csv_nao_importadas(linhas):
+    """``linhas``: dicts de ``LinhaAnalisada.para_nao_importada`` (ou do
+    ``resumo``). Mesmo formato da exportação, com Motivo, Arquivo e Linha
+    no fim (ignoradas na reimportação)."""
+    return escrever_csv(linhas, COLUNAS_NAO_IMPORTADAS)
+
+
+def nome_arquivo_nao_importadas(importacao):
+    return f'nao-importadas-{timezone.localtime(importacao.criado_em):%Y-%m-%d-%H%M}.csv'

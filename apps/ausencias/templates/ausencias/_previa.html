@@ -218,6 +218,11 @@
           {% endif %}
         </button>
       </form>
+      {% if analise.nao_importadas %}
+      <a href="{% url 'ausencias:importacao_nao_importadas' importacao.pk %}" class="btn" id="baixar-nao-importadas">
+        <i class="fa-solid fa-file-csv me-2"></i>Baixar linhas não importadas ({{ analise.nao_importadas|length }})
+      </a>
+      {% endif %}
       <form method="post" action="{% url 'ausencias:importacao_cancelar' importacao.pk %}" class="m-0">
         {% csrf_token %}
         <button type="submit" class="btn btn-outline-danger">
