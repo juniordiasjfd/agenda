@@ -5,6 +5,7 @@ entrada/saída; toda decisão fica aqui.
 """
 
 import logging
+import re
 import secrets
 from dataclasses import dataclass, replace
 from datetime import date
@@ -12,6 +13,7 @@ from datetime import date
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Exists, Min, OuterRef, Prefetch, Q
+from django.db.models.functions import Upper
 
 from apps.ausencias.models import Ausencia, PeriodoAusencia, SituacaoAusencia, TipoAusencia
 from apps.colaboradores.colaboradores_service import SEM_DEPARTAMENTO
@@ -112,6 +114,40 @@ def gerar_codigo():
         if not Ausencia.todos.filter(codigo=codigo).exists():
             return codigo
     raise RuntimeError(f'Não foi possível gerar um código de ausência único em {TENTATIVAS_CODIGO} tentativas.')
+
+
+# Código informado (importação de CSV: o SolicitacaoID legado). Os gerados
+# seguem ``ALFABETO_CODIGO``; os informados podem ter qualquer letra/dígito.
+TAMANHO_MAXIMO_CODIGO = 32
+_RE_CODIGO = re.compile(r'[A-Za-z0-9_-]+')
+
+
+def problema_no_codigo(codigo):
+    """Mensagem se ``codigo`` não serve como código de ausência (vazio,
+    longo demais ou com caracteres fora de letras, números, hífen e
+    sublinhado); ``None`` se o formato está certo. Não consulta o banco."""
+    if not codigo:
+        return 'Informe o código.'
+    if len(codigo) > TAMANHO_MAXIMO_CODIGO:
+        return f'O código deve ter no máximo {TAMANHO_MAXIMO_CODIGO} caracteres.'
+    if not _RE_CODIGO.fullmatch(codigo):
+        return 'O código só pode ter letras, números, hífen e sublinhado.'
+    return None
+
+
+def codigos_em_uso(codigos):
+    """Dos ``codigos``, os já usados por alguma ausência, INCLUSIVE as da
+    lixeira (a unicidade é do banco). Comparação sem diferença de
+    maiúsculas, para não haver dois códigos que só diferem na caixa.
+    Devolve o conjunto em maiúsculas. Uma query."""
+    maiusculos = {codigo.upper() for codigo in codigos if codigo}
+    if not maiusculos:
+        return set()
+    return set(
+        Ausencia.todos.annotate(codigo_maiusculo=Upper('codigo'))
+        .filter(codigo_maiusculo__in=maiusculos)
+        .values_list('codigo_maiusculo', flat=True)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -295,7 +331,10 @@ def _fmt(data):
     return f'{data:%d/%m/%Y}'
 
 
-def _cruzam(inicio_a, fim_a, inicio_b, fim_b):
+# A regra de sobreposição é UMA só, usada pelo formulário, pela gravação,
+# pela restauração e pela importação de CSV (contra o banco e entre as
+# linhas do próprio lote): ``conflitam``. Funções puras, sem banco.
+def cruzam(inicio_a, fim_a, inicio_b, fim_b):
     """Intervalos com fim INCLUSIVO: compartilhar um único dia já é cruzar;
     terminar dia 10 e começar dia 11 não é."""
     return inicio_a <= fim_b and inicio_b <= fim_a
@@ -308,10 +347,37 @@ def _datas_ok(periodo):
     )
 
 
-def _conta(periodo):
-    """Situação ``None`` conta (é a padrão, a ser resolvida por quem grava)."""
+def conta_como_ausencia(periodo):
+    """O período ocupa a agenda? Situação ``None`` conta (é a padrão, a ser
+    resolvida por quem grava); senão vale ``situacao.conta_como_ausencia``."""
     situacao = getattr(periodo, 'situacao', None)
     return situacao is None or situacao.conta_como_ausencia
+
+
+def conflitam(a, b):
+    """Dois períodos do MESMO colaborador conflitam? Sim quando ambos têm
+    datas válidas, ambos contam como ausência e os intervalos (fim
+    inclusivo) se cruzam, independentemente do tipo. ``a``/``b``: qualquer
+    objeto com ``data_inicio``, ``data_fim`` e ``situacao``. Ausências
+    excluídas ficam de fora antes: quem lê do banco usa ``periodos_gravados``."""
+    return (
+        _datas_ok(a) and _datas_ok(b)
+        and conta_como_ausencia(a) and conta_como_ausencia(b)
+        and cruzam(a.data_inicio, a.data_fim, b.data_inicio, b.data_fim)
+    )
+
+
+def periodos_gravados(colaboradores_ids):
+    """Períodos de ausências NÃO excluídas dos colaboradores (ids), de
+    qualquer situação, com ausência, tipo e situação carregados. É o que
+    existe no banco para a checagem de sobreposição (decidida depois por
+    ``conflitam``) e de duplicata na importação."""
+    return (
+        PeriodoAusencia.objects
+        .filter(ausencia__colaborador_id__in=list(colaboradores_ids), ausencia__excluido_em__isnull=True)
+        .select_related('ausencia__tipo', 'situacao')
+        .order_by('data_inicio', 'data_fim', 'pk')
+    )
 
 
 @dataclass(frozen=True)
@@ -340,23 +406,14 @@ def periodos_conflitantes(colaborador, periodos, excluir_ausencia=None):
     edição/restauração) fica fora. Devolve ``Conflito``s ordenados pelo
     índice e pela data.
     """
-    candidatos = [(i, p) for i, p in enumerate(periodos) if _datas_ok(p) and _conta(p)]
+    candidatos = [(i, p) for i, p in enumerate(periodos) if _datas_ok(p) and conta_como_ausencia(p)]
     if not candidatos:
         return []
+    # O filtro no banco só reduz a leitura; quem decide é ``conflitam``.
     cruza_algum = Q()
     for _, periodo in candidatos:
         cruza_algum |= Q(data_inicio__lte=periodo.data_fim, data_fim__gte=periodo.data_inicio)
-    gravados = (
-        PeriodoAusencia.objects
-        .filter(cruza_algum)
-        .filter(
-            ausencia__colaborador=colaborador,
-            ausencia__excluido_em__isnull=True,
-            situacao__conta_como_ausencia=True,
-        )
-        .select_related('ausencia__tipo', 'situacao')
-        .order_by('data_inicio', 'data_fim', 'pk')
-    )
+    gravados = periodos_gravados([colaborador.pk]).filter(cruza_algum, situacao__conta_como_ausencia=True)
     if excluir_ausencia is not None:
         gravados = gravados.exclude(ausencia_id=excluir_ausencia.pk)
     gravados = list(gravados)
@@ -364,7 +421,7 @@ def periodos_conflitantes(colaborador, periodos, excluir_ausencia=None):
         Conflito(indice, gravado)
         for indice, periodo in candidatos
         for gravado in gravados
-        if _cruzam(periodo.data_inicio, periodo.data_fim, gravado.data_inicio, gravado.data_fim)
+        if conflitam(periodo, gravado)
     ]
 
 
@@ -421,11 +478,9 @@ def _validar_periodos(colaborador, periodos, excluir_ausencia, erros):
 
     # Entre os períodos do próprio envio (só os que contam como ausência).
     for posicao, j in enumerate(validos):
-        if not _conta(periodos[j]):
-            continue
         for i in validos[:posicao]:
             a, b = periodos[i], periodos[j]
-            if _conta(a) and _cruzam(a.data_inicio, a.data_fim, b.data_inicio, b.data_fim):
+            if conflitam(a, b):
                 erros.periodo(j, (
                     f'Sobrepõe o período {i + 1} deste registro '
                     f'({_fmt(a.data_inicio)} a {_fmt(a.data_fim)}).'
@@ -534,14 +589,32 @@ def _criar_periodo(ausencia, periodo, usuario):
     )
 
 
-def criar_ausencia(colaborador, tipo, periodos, observacoes, usuario):
+def _validar_codigo_informado(codigo):
+    """Formato e unicidade (inclusive lixeira) do código informado;
+    ``ErroValidacaoAusencia`` no campo ``codigo``."""
+    problema = problema_no_codigo(codigo)
+    if problema is None and codigos_em_uso([codigo]):
+        problema = f'Já existe uma ausência com o código {codigo} (inclusive na lixeira).'
+    if problema is not None:
+        raise ErroValidacaoAusencia(erros_campos={'codigo': [problema]})
+
+
+def criar_ausencia(colaborador, tipo, periodos, observacoes, usuario, codigo=None):
     """Registra uma ausência com seus períodos (``PeriodoInformado``, sem
     ``id``). Valida tudo (``validar_ausencia``) com o colaborador travado e
     grava numa transação: ou entra tudo, ou nada. Levanta
     ``ErroValidacaoAusencia``. Devolve a ``Ausencia`` criada.
+
+    ``codigo``: o informado (importação de CSV: SolicitacaoID legado), até
+    32 letras, números, hífen ou sublinhado, ainda não usado por nenhuma
+    ausência, inclusive as da lixeira (sem diferença de maiúsculas).
+    ``None`` = gera um novo (``gerar_codigo``).
     """
     pk_colaborador = colaborador.pk if colaborador is not None else None
     with transaction.atomic():
+        if codigo is not None:
+            codigo = codigo.strip()
+            _validar_codigo_informado(codigo)
         colaborador = _travar_colaboradores(pk_colaborador).get(pk_colaborador)
         tipo = _recarregar_tipo(tipo)
         resolvidos = validar_ausencia(colaborador, tipo, periodos)
@@ -549,7 +622,7 @@ def criar_ausencia(colaborador, tipo, periodos, observacoes, usuario):
             colaborador=colaborador,
             tipo=tipo,
             observacoes=(observacoes or '').strip(),
-            codigo=gerar_codigo(),
+            codigo=codigo if codigo is not None else gerar_codigo(),
             criado_por=usuario,
             atualizado_por=usuario,
         )
