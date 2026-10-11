@@ -1,0 +1,37 @@
+{% extends "base_public.html" %}
+
+{% block title %}Entrar — Agenda{% endblock %}
+
+{% block content %}
+<h2 class="h2 text-center mb-4">Entrar</h2>
+
+<form method="post" action="{% url 'usuarios:login' %}" novalidate>
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ next }}">
+
+  {% for erro in form.non_field_errors %}
+    <div class="alert alert-danger" role="alert">{{ erro }}</div>
+  {% endfor %}
+
+  {% include "includes/_campo.html" with campo=form.username %}
+
+  <div class="mb-2">
+    <label class="form-label" for="{{ form.password.id_for_label }}">
+      Senha
+      <span class="form-label-description">
+        <a href="{% url 'usuarios:password_reset' %}">Esqueci minha senha</a>
+      </span>
+    </label>
+    {{ form.password }}
+    {% for erro in form.password.errors %}
+      <div class="invalid-feedback d-block">{{ erro }}</div>
+    {% endfor %}
+  </div>
+
+  <div class="form-footer">
+    <button type="submit" class="btn btn-primary w-100">
+      <i class="fa-solid fa-right-to-bracket me-2"></i>Entrar
+    </button>
+  </div>
+</form>
+{% endblock %}
