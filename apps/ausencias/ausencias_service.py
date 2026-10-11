@@ -271,6 +271,23 @@ def ausencias_filtradas(nome='', departamento='', tipo=None, situacao=None, de=N
     )
 
 
+def periodos_do_colaborador(colaborador, de, ate, excluir_ausencia=None):
+    """Períodos gravados do colaborador que cruzam [de, ate], de ausências
+    não excluídas (linha do ano). Inclui situações que não contam como
+    ausência (a tela as mostra apagadas). ``excluir_ausencia``: a que está
+    em edição (seus períodos vêm do formulário)."""
+    periodos = (
+        PeriodoAusencia.objects
+        .filter(ausencia__colaborador=colaborador, ausencia__excluido_em__isnull=True)
+        .filter(data_inicio__lte=ate, data_fim__gte=de)
+        .select_related('ausencia__tipo', 'situacao')
+        .order_by('data_inicio', 'data_fim', 'pk')
+    )
+    if excluir_ausencia is not None:
+        periodos = periodos.exclude(ausencia_id=excluir_ausencia.pk)
+    return periodos
+
+
 # ---------------------------------------------------------------------------
 # Sobreposição
 # ---------------------------------------------------------------------------

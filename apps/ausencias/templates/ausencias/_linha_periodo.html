@@ -34,6 +34,8 @@
   <div class="text-warning small mt-2" x-cloak x-show="passado">
     <i class="fa-solid fa-triangle-exclamation me-1"></i>Começa antes de hoje (permitido; confira as datas).
   </div>
+  {# Preenchido pela pré-checagem (HTMX, fora da banda): só aviso; o envio valida de novo. #}
+  <div id="aviso-{{ form.prefix }}"></div>
   {% for campo in form.visible_fields %}{% for erro in campo.errors %}
     <div class="invalid-feedback d-block">{{ campo.label }}: {{ erro }}</div>
   {% endfor %}{% endfor %}

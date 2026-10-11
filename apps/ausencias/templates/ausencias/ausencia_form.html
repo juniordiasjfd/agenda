@@ -67,6 +67,14 @@
             <i class="fa-solid fa-plus me-2"></i>Adicionar período
           </button>
           <span class="text-secondary small ms-2" x-cloak x-show="ativas >= maximo">Limite de {{ max_periodos }} períodos.</span>
+
+          {# Linha do ano + avisos de conflito por linha, atualizados a cada mudança (só aviso). No
+             carregamento vem só a linha do ano: os erros do servidor, se houver, já estão nas linhas. #}
+          {% if ausencia %}{% url 'ausencias:prechecagem_edicao' ausencia.pk as url_prechecagem %}{% else %}{% url 'ausencias:prechecagem' as url_prechecagem %}{% endif %}
+          <div class="mt-4" id="linha-do-ano"
+               hx-post="{{ url_prechecagem }}" hx-include="#form-ausencia" hx-target="this" hx-swap="innerHTML"
+               hx-trigger="load, change from:#form-ausencia delay:300ms" hx-sync="this:replace"
+               hx-vals='js:{"evento_prechecagem": event ? event.type : ""}'></div>
         </div>
         <div class="card-footer d-flex">
           <a href="{% if ausencia %}{% url 'ausencias:detalhe' ausencia.pk %}{% else %}{% url 'ausencias:lista' %}{% endif %}" class="btn btn-link">Cancelar</a>

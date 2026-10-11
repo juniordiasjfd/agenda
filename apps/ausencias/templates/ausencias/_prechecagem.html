@@ -1,0 +1,33 @@
+{# Resposta da pré-checagem: linha do ano (alvo) e avisos por linha (fora da banda). #}
+{% if not colaborador %}
+  <div class="text-secondary small"><i class="fa-solid fa-circle-info me-1"></i>Escolha o colaborador para ver a linha do ano.</div>
+{% else %}
+  <div class="linha-ano" aria-label="Linha do ano de {{ colaborador.nome }}">
+    <div class="linha-ano-meses"><span></span><div>{% for mes in meses %}<span>{{ mes }}</span>{% endfor %}</div></div>
+    {% for ano in anos %}
+    <div class="linha-ano-linha">
+      <b>{{ ano.ano }}</b>
+      <div class="linha-ano-barra">
+        {% for segmento in ano.segmentos %}
+          <span class="linha-ano-seg {{ segmento.classe }}" title="{{ segmento.titulo }}"
+                style="left: {{ segmento.esquerda|stringformat:'.2f' }}%; width: {{ segmento.largura|stringformat:'.2f' }}%;{% if segmento.cor %} background-color: {{ segmento.cor }};{% endif %}"></span>
+        {% endfor %}
+        {% if ano.hoje %}<span class="linha-ano-hoje" title="Hoje" style="left: {{ ano.hoje.esquerda|stringformat:'.2f' }}%;"></span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    <div class="linha-ano-legenda text-secondary small mt-1">
+      <span><i class="registrado"></i>Já registrado (cor do tipo)</span>
+      <span><i class="novo"></i>Neste registro</span>
+      <span><i class="conflito"></i>Sobreposição</span>
+      <span><i class="nao-conta"></i>Não conta como ausência</span>
+    </div>
+  </div>
+{% endif %}
+{% for prefixo, mensagens in avisos.items %}
+  <div id="aviso-{{ prefixo }}" hx-swap-oob="true">
+    {% for mensagem in mensagens %}
+      <div class="text-danger small mt-2"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ mensagem }}</div>
+    {% endfor %}
+  </div>
+{% endfor %}

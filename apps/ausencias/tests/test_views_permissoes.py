@@ -129,3 +129,10 @@ def test_apagar_post(perfil, excluida):
     status = client.post(reverse('ausencias:apagar', args=[excluida.pk]), {'confirmacao': excluida.codigo}).status_code
     assert status == esperado(nome, admin=True, ok=302)
     assert Ausencia.todos.filter(pk=excluida.pk).exists() == (nome != 'admin')
+
+
+def test_prechecagem(perfil, ausencia):
+    nome, client = perfil
+    assert client.post(reverse('ausencias:prechecagem'), {}).status_code == esperado(nome, gestor=True)
+    url_edicao = reverse('ausencias:prechecagem_edicao', args=[ausencia.pk])
+    assert client.post(url_edicao, {}).status_code == esperado(nome, gestor=True)

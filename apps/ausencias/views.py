@@ -1,3 +1,6 @@
+from dataclasses import dataclass
+from datetime import date
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import get_object_or_404, redirect, render
@@ -117,6 +120,125 @@ class AusenciaEditarView(AusenciaFormMixin, View):
 
     def mensagem_sucesso(self, ausencia):
         return f'Ausência {ausencia.codigo} atualizada ({ausencia.titulo}).'
+
+
+# ---------------------------------------------------------------------------
+# Linha do ano e pré-checagem (fragmento HTMX da tela de registro/edição)
+# ---------------------------------------------------------------------------
+MESES = 'JFMAMJJASOND'
+
+
+@dataclass
+class Segmento:
+    esquerda: float  # % a partir de 1º de janeiro
+    largura: float   # % do ano
+    titulo: str
+    classe: str      # registrado | nao-conta | novo | conflito
+    cor: str = ''
+
+
+def _segmento(inicio, fim, ano, **dados):
+    """Fatia de [inicio, fim] (fim inclusivo) dentro de ``ano``, em % da
+    largura da barra; ``None`` se não cruza o ano."""
+    primeiro, ultimo = date(ano, 1, 1), date(ano, 12, 31)
+    if fim < primeiro or inicio > ultimo:
+        return None
+    dias_no_ano = (ultimo - primeiro).days + 1
+    de, ate = max(inicio, primeiro), min(fim, ultimo)
+    return Segmento(
+        esquerda=round((de - primeiro).days / dias_no_ano * 100, 2),
+        largura=round(((ate - de).days + 1) / dias_no_ano * 100, 2),
+        **dados,
+    )
+
+
+def _intervalo(inicio, fim):
+    return f'{inicio:%d/%m/%Y} a {fim:%d/%m/%Y}'
+
+
+class PrechecagemView(GestorMixin, View):
+    """Aviso antecipado enquanto o formulário é preenchido (POST com o
+    formulário inteiro, disparado pelo HTMX ao mudar colaborador, datas ou
+    linhas). Devolve:
+
+    - a linha do ano (ano corrente e seguinte) com os períodos já
+      registrados do colaborador e os do formulário, conflitantes em
+      destaque;
+    - fora da banda, o aviso de cada linha, com as mesmas mensagens de
+      ``periodos_conflitantes`` (excluindo a ausência em edição).
+
+    Não grava nem bloqueia nada: a validação definitiva é a do envio.
+    """
+    http_method_names = ['post']
+
+    def post(self, request, pk=None):
+        ausencia = get_object_or_404(Ausencia.objects, pk=pk) if pk is not None else None
+        cabecalho, periodos = montar_formularios(request.POST, ausencia=ausencia)
+        cabecalho.is_valid()
+        colaborador = cabecalho.cleaned_data.get('colaborador')
+
+        # Só as validações de campo de cada linha (a do formset chamaria o serviço inteiro).
+        linhas = []  # (prefixo da linha, PeriodoInformado ou None se removida/ilegível)
+        for form in periodos.forms if periodos.management_form.is_valid() else []:
+            form.is_valid()
+            dados = getattr(form, 'cleaned_data', {})
+            informado = None
+            if not dados.get('DELETE') and dados.get('data_inicio') and dados.get('data_fim'):
+                informado = ausencias_service.PeriodoInformado(
+                    dados['data_inicio'], dados['data_fim'], dados.get('situacao'), dados.get('id'),
+                )
+            linhas.append((form.prefix, informado))
+
+        avisos = {prefixo: [] for prefixo, _ in linhas}
+        conflitantes = set()
+        if colaborador is not None:
+            consultados = [informado or ausencias_service.PeriodoInformado(None, None) for _, informado in linhas]
+            for conflito in ausencias_service.periodos_conflitantes(colaborador, consultados, excluir_ausencia=ausencia):
+                prefixo = linhas[conflito.indice][0]
+                avisos[prefixo].append(conflito.mensagem)
+                conflitantes.add(prefixo)
+
+        return render(request, 'ausencias/_prechecagem.html', {
+            'colaborador': colaborador,
+            'meses': MESES,
+            'anos': self.anos(colaborador, linhas, conflitantes, ausencia) if colaborador else [],
+            # Ao carregar a tela, só a linha do ano: se a tela voltou com erros
+            # do envio, eles já estão nas linhas e o aviso os repetiria.
+            'avisos': {} if request.POST.get('evento_prechecagem') == 'load' else avisos,
+        })
+
+    def anos(self, colaborador, linhas, conflitantes, ausencia):
+        hoje = timezone.localdate()
+        anos = [hoje.year, hoje.year + 1]
+        registrados = list(ausencias_service.periodos_do_colaborador(
+            colaborador, date(anos[0], 1, 1), date(anos[-1], 12, 31), excluir_ausencia=ausencia,
+        ))
+        resultado = []
+        for ano in anos:
+            segmentos = []
+            for periodo in registrados:
+                conta = periodo.situacao.conta_como_ausencia
+                segmento = _segmento(
+                    periodo.data_inicio, periodo.data_fim, ano,
+                    titulo=f'{periodo.ausencia.tipo} ({periodo.situacao}) {_intervalo(periodo.data_inicio, periodo.data_fim)}',
+                    classe='registrado' if conta else 'nao-conta',
+                    cor=periodo.ausencia.tipo.cor,
+                )
+                if segmento:
+                    segmentos.append(segmento)
+            for prefixo, informado in linhas:
+                if informado is None or informado.data_fim < informado.data_inicio:
+                    continue
+                segmento = _segmento(
+                    informado.data_inicio, informado.data_fim, ano,
+                    titulo=f'Neste registro: {_intervalo(informado.data_inicio, informado.data_fim)}',
+                    classe='conflito' if prefixo in conflitantes else 'novo',
+                )
+                if segmento:
+                    segmentos.append(segmento)
+            hoje_pct = _segmento(hoje, hoje, ano, titulo='Hoje', classe='hoje') if ano == hoje.year else None
+            resultado.append({'ano': ano, 'segmentos': segmentos, 'hoje': hoje_pct})
+        return resultado
 
 
 # ---------------------------------------------------------------------------

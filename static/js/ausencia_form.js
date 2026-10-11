@@ -41,6 +41,8 @@ document.addEventListener('alpine:init', function () {
         if (marcador) marcador.checked = true;
         linha.hidden = true;
         this.renumerar();
+        // Avisa a pré-checagem (HTMX escuta "change" no formulário).
+        linha.dispatchEvent(new Event('change', { bubbles: true }));
       },
 
       // Numera as linhas visíveis como o servidor numera os períodos.

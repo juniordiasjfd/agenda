@@ -23,3 +23,26 @@
   margin-right: .4rem;
   vertical-align: -1px;
 }
+
+/* Linha do ano na tela de registro (ideia do legado/index.html). */
+.linha-ano { display: flex; flex-direction: column; gap: .4rem; }
+.linha-ano-meses, .linha-ano-linha { display: grid; grid-template-columns: 2.75rem 1fr; gap: .5rem; align-items: center; }
+.linha-ano-meses div { display: grid; grid-template-columns: repeat(12, 1fr); font-size: .65rem; color: var(--tblr-secondary); }
+.linha-ano-linha b { font-size: .75rem; font-weight: 500; color: var(--tblr-secondary); }
+.linha-ano-barra {
+  position: relative; height: 1.6rem; border: 1px solid var(--tblr-border-color); border-radius: 4px;
+  background: repeating-linear-gradient(90deg, transparent 0, transparent calc(8.3333% - 1px),
+    var(--tblr-border-color) calc(8.3333% - 1px), var(--tblr-border-color) 8.3333%);
+}
+.linha-ano-seg { position: absolute; top: 3px; bottom: 3px; min-width: 3px; border-radius: 3px; }
+.linha-ano-seg.registrado { opacity: .85; }
+.linha-ano-seg.nao-conta { background-color: var(--tblr-gray-300) !important; }
+.linha-ano-seg.novo { background: var(--tblr-primary); top: 7px; bottom: 7px; }
+.linha-ano-seg.conflito { background: var(--tblr-danger); top: 7px; bottom: 7px; }
+.linha-ano-hoje { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--tblr-body-color); }
+.linha-ano-legenda { display: flex; flex-wrap: wrap; gap: .9rem; }
+.linha-ano-legenda i { display: inline-block; width: .65rem; height: .65rem; border-radius: 2px; margin-right: .3rem; vertical-align: -1px; }
+.linha-ano-legenda i.registrado { background: var(--tblr-gray-500); }
+.linha-ano-legenda i.novo { background: var(--tblr-primary); }
+.linha-ano-legenda i.conflito { background: var(--tblr-danger); }
+.linha-ano-legenda i.nao-conta { background: var(--tblr-gray-300); }

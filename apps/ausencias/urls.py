@@ -14,4 +14,7 @@ urlpatterns = [
     path('<int:pk>/restaurar/', views.AusenciaRestaurarView.as_view(), name='restaurar'),
     path('<int:pk>/apagar/', views.AusenciaApagarView.as_view(), name='apagar'),
     path('lixeira/', views.LixeiraView.as_view(), name='lixeira'),
+    # Fragmento HTMX da tela de registro/edição (linha do ano + avisos).
+    path('prechecagem/', views.PrechecagemView.as_view(), name='prechecagem'),
+    path('<int:pk>/prechecagem/', views.PrechecagemView.as_view(), name='prechecagem_edicao'),
 ]
