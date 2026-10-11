@@ -34,7 +34,7 @@
       JavaScript, o painel.js refaz só o fetch dos dados a cada alteração e
       atualiza a URL (history.replaceState).
     {% endcomment %}
-    <form method="get" action="{% url 'painel:painel' %}" id="painel-filtros" class="row g-3 align-items-end"
+    <form method="get" action="{% url 'painel:painel' %}" id="painel-filtros" class="row g-3 align-items-start"
           data-url-dados="{% url 'painel:dados' %}" role="search" aria-label="Filtros do painel">
       <div class="col-md-6 col-lg-3">
         <label class="form-label" for="filtro-q">Nome</label>
@@ -162,4 +162,8 @@
     <div class="painel-vazio text-secondary d-none" data-vazio>Nenhum colaborador atende aos filtros.</div>
   </div>
 </section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static_versionado 'js/painel.js' %}"></script>
 {% endblock %}

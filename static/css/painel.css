@@ -88,6 +88,10 @@
 .painel-rolagem {
   overflow: auto;
   max-height: 72vh;
+  /* A largura da tabela não pode subir pelos flex do Tabler (.page,
+   * .page-wrapper) e alargar a página inteira em tela estreita: a rolagem
+   * horizontal fica só aqui dentro. */
+  contain: inline-size;
   border-top: 1px solid var(--painel-linha);
   background: var(--painel-superficie);
 }
