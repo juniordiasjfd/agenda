@@ -239,7 +239,7 @@ def test_rejeitar_superuser_inativo_sem_aprovado_em_nao_exclui(senha):
 # Menu
 # ---------------------------------------------------------------------------
 def test_menu_do_admin_mostra_contador(admin_client, usuario_pendente):
-    response = admin_client.get(reverse('core:home'))
+    response = admin_client.get(reverse('painel:painel'))
 
     conteudo = response.content.decode()
     assert URL_PENDENTES in conteudo
@@ -249,16 +249,17 @@ def test_menu_do_admin_mostra_contador(admin_client, usuario_pendente):
 def test_menu_do_gestor_nao_tem_pendentes(client, gestor, usuario_pendente):
     client.force_login(gestor)
 
-    response = client.get(reverse('core:home'))
+    response = client.get(reverse('painel:painel'))
 
     assert URL_PENDENTES not in response.content.decode()
     assert 'cadastros_pendentes' not in response.context
 
 
 def test_contador_e_uma_consulta_so(admin_client, usuario_pendente, django_assert_num_queries):
-    # Sessão + usuário + o count() do menu (que aparece duas vezes no HTML).
-    with django_assert_num_queries(3):
-        admin_client.get(reverse('core:home'))
+    # Sessão + usuário + o count() do menu (que aparece duas vezes no HTML)
+    # + os departamentos do filtro do painel (a página inicial).
+    with django_assert_num_queries(4):
+        admin_client.get(reverse('painel:painel'))
 
 
 def test_grupo_gestor_e_o_do_service():

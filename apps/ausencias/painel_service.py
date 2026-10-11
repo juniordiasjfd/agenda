@@ -19,7 +19,7 @@ from django.urls import reverse
 from apps.ausencias.csv_service import ler_data
 from apps.ausencias.models import PeriodoAusencia, TipoAusencia
 from apps.colaboradores.colaboradores_service import SEM_DEPARTAMENTO
-from apps.colaboradores.models import Colaborador
+from apps.colaboradores.models import Colaborador, Departamento
 from apps.core.utils import normalizar_nome
 
 TAMANHO_MAXIMO_BUSCA = 150
@@ -110,6 +110,29 @@ def _ler_intervalo(texto_de, texto_ate, rotulo, avisos):
             return None
         datas.append(data)
     return Intervalo(min(datas), max(datas))
+
+
+# ---------------------------------------------------------------------------
+# Opções do formulário de filtros
+# ---------------------------------------------------------------------------
+def departamentos_para_escolha():
+    """Todos os departamentos, por nome ("Sem departamento" vai no fim, na
+    tela)."""
+    return Departamento.objects.all()
+
+
+def rotulo_departamentos(escolhidos, departamentos):
+    """Resumo do botão da multisseleção: "Todos", o nome do único escolhido
+    ("Sem departamento" inclusive) ou "N departamentos". ``escolhidos``: os
+    de ``FiltrosPainel.departamentos``; ids sem departamento existente não
+    contam. O painel.js repete este texto ao marcar/desmarcar."""
+    nomes = {d.pk: d.nome for d in departamentos}
+    validos = [valor for valor in escolhidos if valor == SEM_DEPARTAMENTO or valor in nomes]
+    if not validos:
+        return 'Todos'
+    if len(validos) == 1:
+        return 'Sem departamento' if validos[0] == SEM_DEPARTAMENTO else nomes[validos[0]]
+    return f'{len(validos)} departamentos'
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,275 @@
+/* Painel de ausências (Gantt), adaptado de legado/referencias/Painel de ausências.html.
+ *
+ * As cores do legado (--bg, --surface, --ink...) viraram variáveis do Tabler,
+ * SEMPRE com valor de reserva (claro). O tema escuro do Tabler redefine as
+ * --tblr-*; as reservas escuras ficam no bloco [data-bs-theme=dark] abaixo.
+ * A cor de cada barra vem do tipo (--cor-tipo, posta pelo painel.js).
+ */
+.painel-palco,
+.painel-multiselecao {
+  --painel-superficie: var(--tblr-bg-surface, #fff);
+  --painel-fundo: var(--tblr-body-bg, #f6f8fb);
+  --painel-texto: var(--tblr-body-color, #182433);
+  --painel-texto-2: var(--tblr-secondary, #6c7a91);
+  --painel-linha: var(--tblr-border-color, #dce1e7);
+  --painel-grade: var(--tblr-border-color-translucent, rgba(4, 32, 69, .1));
+  --painel-fim-de-semana: var(--tblr-bg-surface-secondary, #eef3f6);
+  --painel-hoje: var(--tblr-primary-lt, #e6f1fa);
+  --painel-destaque: var(--tblr-primary, #066fd1);
+  --painel-nome: 220px;
+}
+[data-bs-theme=dark] .painel-palco,
+[data-bs-theme=dark] .painel-multiselecao {
+  --painel-superficie: var(--tblr-bg-surface, #182433);
+  --painel-fundo: var(--tblr-body-bg, #151f2c);
+  --painel-texto: var(--tblr-body-color, #dce1e7);
+  --painel-linha: var(--tblr-border-color, #25384f);
+  --painel-grade: var(--tblr-border-color-translucent, rgba(72, 110, 149, .14));
+  --painel-fim-de-semana: var(--tblr-bg-surface-secondary, #1b293a);
+  --painel-hoje: var(--tblr-primary-lt, #162c43);
+}
+
+/* ---- Multisseleção de departamentos (<details> com cara de dropdown) ---- */
+.painel-multiselecao {
+  position: relative;
+}
+.painel-multiselecao > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.painel-multiselecao > summary::-webkit-details-marker {
+  display: none;
+}
+.painel-multiselecao[open] > .painel-multiselecao-menu {
+  display: block;
+}
+.painel-multiselecao-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1050;
+  width: 100%;
+  min-width: 16rem;
+  max-height: 20rem;
+  overflow-y: auto;
+  margin-top: .25rem;
+  background-color: var(--painel-superficie);
+  color: var(--painel-texto);
+}
+.painel-multiselecao-menu .dropdown-item {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  white-space: normal;
+}
+
+/* ---- Palco: barra de ferramentas, legenda e grade rolável ---- */
+.painel-palco[hidden] {
+  display: none !important;
+}
+.painel-intervalo {
+  font-variant-numeric: tabular-nums;
+}
+.painel-legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem 1rem;
+  color: var(--painel-texto-2);
+}
+.painel-legenda i {
+  display: inline-block;
+  width: .75rem;
+  height: .75rem;
+  border-radius: 3px;
+  margin-right: .4rem;
+  vertical-align: -1px;
+  background: var(--cor-tipo, #6c7a91);
+}
+.painel-rolagem {
+  overflow: auto;
+  max-height: 72vh;
+  border-top: 1px solid var(--painel-linha);
+  background: var(--painel-superficie);
+}
+.painel-vazio {
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+/* ---- Grade (tabela) ---- */
+table.painel-gantt {
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  color: var(--painel-texto);
+}
+.painel-gantt th,
+.painel-gantt td {
+  padding: 0;
+}
+.painel-gantt thead th {
+  position: sticky;
+  z-index: 3;
+  background: var(--painel-superficie);
+  font-weight: 500;
+  color: var(--painel-texto-2);
+  border-bottom: 1px solid var(--painel-linha);
+  white-space: nowrap;
+}
+.painel-gantt thead tr:first-child th {
+  top: 0;
+  height: 26px;
+  text-align: left;
+  padding-inline: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--painel-texto);
+  border-left: 1px solid var(--painel-linha);
+}
+.painel-gantt thead tr:nth-child(2) th {
+  top: 26px;
+  height: 40px;
+  font-size: 12px;
+  text-align: center;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.painel-gantt thead th.painel-col-nome {
+  left: 0;
+  z-index: 5;
+  text-align: left;
+  padding-inline: 12px;
+  vertical-align: bottom;
+  padding-bottom: 8px;
+  font-size: 12px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  border-right: 1px solid var(--painel-linha);
+  border-left: 0;
+  color: var(--painel-texto-2);
+}
+.painel-gantt th .painel-dia-semana {
+  display: block;
+  font-size: 10px;
+  color: var(--painel-texto-2);
+}
+.painel-gantt th .painel-dia-numero {
+  display: block;
+  color: var(--painel-texto);
+}
+/* Fundos OPACOS: colunas e cabeçalhos fixos passam por cima das barras. */
+.painel-gantt th.fim-de-semana {
+  background: var(--painel-fim-de-semana);
+}
+.painel-gantt th.hoje {
+  background: var(--painel-hoje);
+  color: var(--painel-destaque);
+}
+.painel-gantt th.hoje .painel-dia-numero,
+.painel-gantt th.hoje .painel-dia-semana {
+  color: var(--painel-destaque);
+  font-weight: 600;
+}
+.painel-gantt tbody th.painel-nome {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--painel-superficie);
+  border-right: 1px solid var(--painel-linha);
+  border-bottom: 1px solid var(--painel-grade);
+  padding: 0 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  text-align: left;
+}
+.painel-gantt tbody th.painel-nome small {
+  display: block;
+  font-weight: 400;
+  color: var(--painel-texto-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.painel-gantt tbody td {
+  position: relative;
+  border-bottom: 1px solid var(--painel-grade);
+  background-image: linear-gradient(to right, transparent calc(100% - 1px), var(--painel-grade) 0);
+}
+.painel-gantt tbody td.fim-de-semana {
+  background-color: var(--painel-fim-de-semana);
+}
+.painel-gantt tbody td.hoje {
+  background-color: var(--painel-hoje);
+}
+.painel-gantt tbody tr:hover th.painel-nome {
+  background: var(--painel-hoje);
+}
+
+/* ---- Barras ---- */
+.painel-barra {
+  position: absolute;
+  z-index: 1;
+  display: block;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  background: var(--cor-tipo, #6c7a91);
+}
+.painel-barra.borda-esquerda {
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+}
+.painel-barra.borda-direita {
+  border-top-right-radius: 5px;
+  border-bottom-right-radius: 5px;
+}
+.painel-barra:hover {
+  filter: brightness(1.1);
+}
+.painel-barra:focus-visible {
+  outline: 2px solid var(--painel-texto);
+  outline-offset: 1px;
+  z-index: 2;
+}
+
+/* ---- Tela cheia (página inteira; usa também a do navegador quando pode) ---- */
+.painel-palco.tela-cheia {
+  position: fixed;
+  inset: 0;
+  z-index: 1040;
+  margin: 0;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--painel-superficie);
+}
+.painel-palco.tela-cheia .painel-rolagem {
+  max-height: none;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+body.painel-em-tela-cheia {
+  overflow: hidden;
+}
+
+/* ---- Tela estreita ---- */
+@media (max-width: 575.98px) {
+  .painel-palco,
+  .painel-multiselecao {
+    --painel-nome: 130px;
+  }
+  .painel-gantt tbody th.painel-nome {
+    padding: 0 6px;
+    font-size: 12px;
+  }
+  .painel-rolagem {
+    max-height: 65vh;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .painel-barra {
+    transition: none;
+  }
+}

@@ -24,7 +24,7 @@ def _templates_do_projeto():
 
 def test_ha_templates_para_verificar():
     nomes = {arquivo.name for arquivo in _templates_do_projeto()}
-    assert {'base.html', 'ausencia_form.html', 'home.html'} <= nomes
+    assert {'base.html', 'ausencia_form.html', 'painel.html'} <= nomes
 
 
 def test_nenhum_comentario_curto_ocupa_mais_de_uma_linha():
@@ -55,7 +55,7 @@ def ausencia(db, admin):
 def test_paginas_principais_nao_mostram_marcas_de_comentario(client, admin, ausencia):
     client.force_login(admin)
     urls = [
-        reverse('core:home'),
+        reverse('painel:painel'),
         reverse('ausencias:lista'),
         reverse('ausencias:registrar'),
         reverse('ausencias:detalhe', args=[ausencia.pk]),

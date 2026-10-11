@@ -21,17 +21,17 @@
         <span class="navbar-toggler-icon"></span>
       </button>
       <h1 class="navbar-brand navbar-brand-autodark">
-        <a href="{% url 'core:home' %}" class="text-decoration-none text-reset">
+        <a href="{% url 'painel:painel' %}" class="text-decoration-none text-reset">
           <i class="fa-solid fa-calendar-days me-2"></i>Agenda
         </a>
       </h1>
 
       <div class="collapse navbar-collapse" id="menuLateral">
         <ul class="navbar-nav pt-lg-3">
-          <li class="nav-item{% if active_nav == 'home' %} active{% endif %}">
-            <a class="nav-link" href="{% url 'core:home' %}">
-              <span class="nav-link-icon"><i class="fa-solid fa-house"></i></span>
-              <span class="nav-link-title">Início</span>
+          <li class="nav-item{% if active_nav == 'painel' %} active{% endif %}">
+            <a class="nav-link" href="{% url 'painel:painel' %}">
+              <span class="nav-link-icon"><i class="fa-solid fa-chart-gantt"></i></span>
+              <span class="nav-link-title">Painel</span>
             </a>
           </li>
 

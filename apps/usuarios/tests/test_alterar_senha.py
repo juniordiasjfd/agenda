@@ -29,7 +29,7 @@ def test_alterar_senha(client, usuario_ativo, senha):
     usuario_ativo.refresh_from_db()
     assert usuario_ativo.check_password(NOVA_SENHA)
     # A sessão continua válida depois da troca.
-    assert client.get(reverse('core:home')).status_code == 200
+    assert client.get(reverse('painel:painel')).status_code == 200
 
 
 def test_senha_atual_errada(client, usuario_ativo, senha):

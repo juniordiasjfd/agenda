@@ -297,4 +297,4 @@ def test_fluxo_convite_ate_o_login(admin_client, client):
 
     response = client.post(URL_LOGIN, {'username': 'convidada@exemplo.com', 'password': senha_nova})
     assert response.status_code == 302
-    assert response.url == reverse('core:home')
+    assert response.url == reverse('painel:painel')

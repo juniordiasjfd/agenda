@@ -249,7 +249,8 @@ AUTH_USER_MODEL = 'usuarios.User'
 AUTHENTICATION_BACKENDS = ['apps.usuarios.backends.EmailBackend']
 
 LOGIN_URL = 'usuarios:login'
-LOGIN_REDIRECT_URL = 'core:home'
+# Página inicial depois do login: o painel de ausências.
+LOGIN_REDIRECT_URL = 'painel:painel'
 LOGOUT_REDIRECT_URL = 'usuarios:login'
 
 # Validade do link de redefinição de senha: 24 h.

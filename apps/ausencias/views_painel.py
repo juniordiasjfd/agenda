@@ -1,4 +1,4 @@
-"""Painel Gantt: endpoint JSON (e, na próxima etapa, a página).
+"""Painel Gantt: a página (filtros) e o endpoint JSON que o painel.js desenha.
 
 Views finas: leem a querystring, chamam ``painel_service`` e devolvem.
 """
@@ -7,6 +7,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views import View
+from django.views.generic import TemplateView
 
 from apps.ausencias import painel_service
 
@@ -35,3 +36,26 @@ class PainelDadosView(LoginRequiredMixin, View):
         resposta = JsonResponse(painel_service.painel_para_json(painel), json_dumps_params={'ensure_ascii': False})
         resposta['Cache-Control'] = 'no-store'
         return resposta
+
+
+class PainelView(LoginRequiredMixin, TemplateView):
+    """``GET painel/``: página inicial depois do login. O formulário de
+    filtros é um GET comum (URL compartilhável); o Gantt é desenhado pelo
+    painel.js com os dados de ``painel/dados/`` e a mesma querystring."""
+    template_name = 'ausencias/painel.html'
+    extra_context = {'active_nav': 'painel'}
+
+    def get_context_data(self, **kwargs):
+        get = self.request.GET
+        filtros = filtros_da_querystring(get)
+        departamentos = list(painel_service.departamentos_para_escolha())
+        kwargs.update(
+            filtros=filtros,
+            departamentos=departamentos,
+            rotulo_departamentos=painel_service.rotulo_departamentos(filtros.departamentos, departamentos),
+            # Textos como vieram, para o formulário mostrar o que foi digitado.
+            valores={campo: get.get(campo, '') for campo in (
+                'q', 'ausente_de', 'ausente_ate', 'presente_de', 'presente_ate',
+            )},
+        )
+        return super().get_context_data(**kwargs)

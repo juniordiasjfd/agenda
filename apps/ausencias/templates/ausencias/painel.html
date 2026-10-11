@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% load static agenda_static %}
+
+{% block title %}Painel — Agenda{% endblock %}
+
+{% block page_css %}
+<link rel="stylesheet" href="{% static_versionado 'css/painel.css' %}">
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <h2 class="page-title">Painel de ausências</h2>
+      </div>
+      {% if user.eh_gestor %}
+      <div class="col-auto ms-auto">
+        <a href="{% url 'ausencias:registrar' %}" class="btn btn-primary">
+          <i class="fa-solid fa-calendar-plus me-2"></i>Registrar ausência
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card mb-3">
+  <div class="card-body">
+    {% comment %}
+      GET comum: sem JavaScript, "Aplicar" recarrega com a URL completa. Com
+      JavaScript, o painel.js refaz só o fetch dos dados a cada alteração e
+      atualiza a URL (history.replaceState).
+    {% endcomment %}
+    <form method="get" action="{% url 'painel:painel' %}" id="painel-filtros" class="row g-3 align-items-end"
+          data-url-dados="{% url 'painel:dados' %}" role="search" aria-label="Filtros do painel">
+      <div class="col-md-6 col-lg-3">
+        <label class="form-label" for="filtro-q">Nome</label>
+        <input type="search" name="q" id="filtro-q" class="form-control" value="{{ valores.q }}"
+               placeholder="Parte do nome" autocomplete="off" maxlength="150">
+      </div>
+
+      <div class="col-md-6 col-lg-3">
+        <span class="form-label" id="rotulo-departamentos">Departamentos</span>
+        {# <details> abre e fecha sem JavaScript; o painel.js fecha ao clicar fora e no Esc. #}
+        <details class="dropdown painel-multiselecao" id="filtro-departamentos">
+          <summary class="form-select text-truncate" aria-describedby="rotulo-departamentos">
+            <span data-resumo>{{ rotulo_departamentos }}</span>
+          </summary>
+          <div class="dropdown-menu painel-multiselecao-menu" role="group" aria-labelledby="rotulo-departamentos">
+            <label class="dropdown-item">
+              {# Sem name: "Todos" é a AUSÊNCIA do parâmetro departamento na URL. #}
+              <input type="checkbox" class="form-check-input m-0 me-2" data-todos
+                     {% if not filtros.departamentos %}checked{% endif %}>
+              Todos os departamentos
+            </label>
+            <div class="dropdown-divider"></div>
+            {% for departamento in departamentos %}
+            <label class="dropdown-item">
+              <input type="checkbox" class="form-check-input m-0 me-2" name="departamento" value="{{ departamento.pk }}"
+                     data-nome="{{ departamento.nome }}"
+                     {% if departamento.pk in filtros.departamentos %}checked{% endif %}>
+              <span class="text-truncate">{{ departamento.nome }}</span>
+            </label>
+            {% endfor %}
+            {% if departamentos %}<div class="dropdown-divider"></div>{% endif %}
+            <label class="dropdown-item">
+              <input type="checkbox" class="form-check-input m-0 me-2" name="departamento" value="sem"
+                     data-nome="Sem departamento" {% if 'sem' in filtros.departamentos %}checked{% endif %}>
+              Sem departamento
+            </label>
+          </div>
+        </details>
+      </div>
+
+      <fieldset class="col-md-6 col-lg-3">
+        <legend class="form-label">Ausência em</legend>
+        <div class="input-group">
+          <input type="date" name="ausente_de" class="form-control" value="{{ valores.ausente_de }}"
+                 min="2000-01-01" max="2100-12-31" aria-label="Ausência em: de">
+          <input type="date" name="ausente_ate" class="form-control" value="{{ valores.ausente_ate }}"
+                 min="2000-01-01" max="2100-12-31" aria-label="Ausência em: até">
+        </div>
+        <small class="form-hint">Quem tem ausência em pelo menos um dia do período.</small>
+      </fieldset>
+
+      <fieldset class="col-md-6 col-lg-3">
+        <legend class="form-label">Presença em</legend>
+        <div class="input-group">
+          <input type="date" name="presente_de" class="form-control" value="{{ valores.presente_de }}"
+                 min="2000-01-01" max="2100-12-31" aria-label="Presença em: de">
+          <input type="date" name="presente_ate" class="form-control" value="{{ valores.presente_ate }}"
+                 min="2000-01-01" max="2100-12-31" aria-label="Presença em: até">
+        </div>
+        <small class="form-hint">Quem não tem ausência em nenhum dia do período.</small>
+      </fieldset>
+
+      <div class="col-12 d-flex flex-wrap align-items-center gap-2">
+        <label class="form-check mb-0 me-auto">
+          {# Desmarcada, só o "0" vai na URL; marcada, vale o último valor ("1"). #}
+          <input type="hidden" name="sem_registros" value="0">
+          <input type="checkbox" class="form-check-input" name="sem_registros" value="1"
+                 {% if filtros.sem_registros %}checked{% endif %}>
+          <span class="form-check-label">Incluir colaboradores sem registros</span>
+        </label>
+        <button type="submit" class="btn btn-primary">
+          <i class="fa-solid fa-filter me-2"></i>Aplicar
+        </button>
+        <a href="{% url 'painel:painel' %}" class="btn btn-link" data-limpar>Limpar filtros</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="painel-avisos" aria-live="polite">
+  {% for aviso in filtros.avisos %}
+    <div class="alert alert-warning">{{ aviso }}</div>
+  {% endfor %}
+</div>
+
+<noscript>
+  <div class="alert alert-info">
+    O painel de ausências precisa de JavaScript para desenhar a linha do tempo. Ative o JavaScript
+    ou use a <a href="{% url 'ausencias:lista' %}">lista de ausências</a>.
+  </div>
+</noscript>
+
+{# Escondido até o painel.js iniciar (sem JavaScript, fica só o aviso acima). #}
+<section class="card painel-palco" id="painel-palco" aria-label="Linha do tempo das ausências" hidden>
+  <div class="card-header flex-wrap gap-2">
+    <div class="btn-group" role="group" aria-label="Escala de tempo">
+      <button type="button" class="btn" data-escala="dia" aria-pressed="true">Diário</button>
+      <button type="button" class="btn" data-escala="sem" aria-pressed="false">Semanal</button>
+      <button type="button" class="btn" data-escala="mes" aria-pressed="false">Mensal</button>
+    </div>
+    <div class="btn-group" role="group" aria-label="Navegação">
+      <button type="button" class="btn btn-icon" data-navegar="-1" aria-label="Período anterior" title="Período anterior">
+        <i class="fa-solid fa-chevron-left"></i>
+      </button>
+      <button type="button" class="btn" data-navegar="0">Hoje</button>
+      <button type="button" class="btn btn-icon" data-navegar="1" aria-label="Próximo período" title="Próximo período">
+        <i class="fa-solid fa-chevron-right"></i>
+      </button>
+    </div>
+    <span class="painel-intervalo text-secondary" data-intervalo></span>
+    <button type="button" class="btn ms-lg-auto" data-tela-cheia aria-pressed="false">
+      <i class="fa-solid fa-expand me-2"></i><span>Tela cheia</span>
+    </button>
+  </div>
+  <div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center">
+    <span class="text-secondary" data-contador aria-live="polite"></span>
+    <span class="text-secondary d-none" data-carregando>
+      <span class="spinner-border spinner-border-sm me-1" role="status"></span>Carregando...
+    </span>
+    <div class="painel-legenda ms-md-auto" data-legenda aria-label="Legenda dos tipos"></div>
+  </div>
+  <div class="alert alert-danger m-3 d-none" data-erro role="alert"></div>
+  <div class="painel-rolagem" data-rolagem>
+    <table class="painel-gantt" data-gantt></table>
+    <div class="painel-vazio text-secondary d-none" data-vazio>Nenhum colaborador atende aos filtros.</div>
+  </div>
+</section>
+{% endblock %}

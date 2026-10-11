@@ -5,7 +5,8 @@ from django.urls import reverse
 pytestmark = pytest.mark.django_db
 
 URL_LOGIN = reverse('usuarios:login')
-URL_HOME = reverse('core:home')
+# Depois do login: o painel (página inicial).
+URL_HOME = reverse('painel:painel')
 
 MSG_PENDENTE = 'Seu cadastro está aguardando aprovação do administrador.'
 MSG_DESATIVADO = 'Este usuário está desativado.'
