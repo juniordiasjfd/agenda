@@ -87,6 +87,12 @@ do settings) estão em `legado/referencias/`: reproduza esses padrões.
   CheckConstraint: data_fim >= data_inicio. `dias` é propriedade calculada.
 - Auditoria: AuditoriaBase (criado_em/por, atualizado_em/por) em todos os
   models de domínio. Sem histórico completo de alterações.
+- ImportacaoCSV (staging da importação; AuditoriaBase, pk UUID): arquivos
+  (JSON com as linhas lidas), decisoes (JSON com os cadastros marcados para
+  criar), status (pendente, aplicada, cancelada), resumo (JSON: contagens e
+  linhas não importadas), aplicada_em. Pendente com mais de 2 h está expirada
+  (enviar de novo); cada novo envio apaga as com mais de 24 h; aplicar ou
+  cancelar apaga `arquivos`. No admin, somente leitura.
 
 ## Regras de negócio
 - Sobreposição de períodos do mesmo colaborador é evitada na camada de
@@ -118,6 +124,19 @@ do settings) estão em `legado/referencias/`: reproduza esses padrões.
   podem ser escolhidos em novos registros, mas ausências existentes que os
   usam permanecem válidas.
 - Tipos e situações são gerenciados no /admin/ do Django (sem telas próprias).
+- Trava otimista na edição: token = `atualizado_em` da ausência;
+  `atualizar_ausencia(versao=...)` levanta `AusenciaAlterada` se ela mudou; a
+  tela mostra mensagem amigável sem perder o que foi digitado.
+- Exclusão e lixeira: o admin do Django não exclui ausências;
+  `apagar_definitivamente` só para ausência na lixeira, só superuser, digitando
+  o código; editar ausência na lixeira é recusado ("restaure antes de
+  editar"); restaurar não exige colaborador/tipo/situação ativos, só ausência
+  de conflito.
+- Situação inativa só vale em período que já a tinha. Período cuja situação
+  não conta como ausência não conflita nem com o banco nem com o mesmo envio.
+- Listagem: `ausencias_filtradas` é a fonte única dos filtros (listagem e
+  exportação). As regras das opções dos selects (`*_para_escolha`) ficam no
+  serviço. Linha de período em branco no formulário é erro, não é ignorada.
 
 ## CSV (compatível com os arquivos já existentes)
 - Colunas: Titulo;Colaborador;TipoEvento;DataInicio;DataFim;QuantidadeDias;
@@ -136,6 +155,42 @@ do settings) estão em `legado/referencias/`: reproduza esses padrões.
   - colaborador inexistente: reportar e oferecer criar (departamento nulo);
   - tipo ou situação inexistente: reportar e oferecer criar.
 - Migração dos CSVs antigos: feita pela própria tela de importação.
+- Exportação usa os mesmos filtros da listagem e exporta TODOS os períodos das
+  ausências filtradas (SolicitacaoID íntegro para reimportar).
+- Fórmulas: na exportação, campo de texto (Titulo, Colaborador, TipoEvento,
+  Situacao, Observacoes) que começa com = + - @ tab ou CR ganha um apóstrofo
+  na frente; a importação desfaz exatamente esse prefixo.
+- Limites da importação (settings `CSV_IMPORTACAO_*`): 20 arquivos por envio,
+  2 MB e 5000 registros por arquivo, extensão .csv ou .txt. Arquivo fora do
+  limite é recusado sozinho; os demais seguem.
+- Titulo, QuantidadeDias e DataSolicitacao são ignorados na leitura
+  (derivados; criado_em = momento da importação).
+- Arquivos lidos em ordem alfabética do nome, registros na ordem do arquivo:
+  em sobreposição, a linha mais antiga vence.
+- Precedência por linha: inválida → resolução de cadastro (nome normalizado;
+  situação vazia = padrão) → duplicata → sobreposição (a regra única) →
+  limite de 12 períodos por ausência.
+- Duplicata compara só com ausências NÃO excluídas (e linhas anteriores do
+  lote que serão importadas).
+- Colaborador, tipo ou situação existente porém inativo: linha inválida
+  (reativar antes de importar).
+- Criação de colaborador/tipo/situação só por marcação explícita na prévia
+  (padrão: desmarcado) e só se alguma linha a importar usa. Padrões:
+  colaborador ativo e sem departamento; tipo ativo, cor neutra, ordem ao
+  final; situação ativa, conta como ausência, não padrão, ordem ao final.
+- Grupos: (SolicitacaoID, colaborador, tipo) normalizados; linha sem ID =
+  uma ausência só dela. ID com colaborador/tipo divergente: o primeiro grupo
+  fica com o código, os demais recebem código novo. ID inválido como código
+  ou já existente (inclusive lixeira, sem diferença de caixa): código novo,
+  com aviso. Grupo parcial importa só as linhas válidas, sinalizado.
+- A prévia exibe a assinatura (hash do plano: o que será importado e
+  criado). Confirmar trava a importação e os colaboradores envolvidos (ordem
+  de id), refaz a análise e só grava se a assinatura bater (senão: "os dados
+  mudaram", nada gravado). Tudo numa transação: qualquer erro = rollback
+  total, log e "nada foi gravado".
+- CSV de linhas não importadas (sobreposição, inválida, pendente; sem
+  duplicatas): as colunas canônicas com os valores lidos + Motivo, Arquivo e
+  Linha. Disponível na prévia e no resultado; pode ser corrigido e reenviado.
 
 ## Painel Gantt
 - Reaproveitar o JS de `legado/Painel de ausências.html` (escalas diária,
@@ -168,6 +223,22 @@ do settings) estão em `legado/referencias/`: reproduza esses padrões.
 - Segredos só em variáveis de ambiente; nunca commitar `.env`.
 - Commits pequenos, um por etapa, mensagens em português.
 - Antes de qualquer etapa grande, apresentar um plano e aguardar aprovação.
+- Templates: comentário de várias linhas só com `{% comment %}`; `{# #}`
+  apenas numa linha. Há teste que impede reincidência
+  (`apps/core/tests/test_templates.py`).
+- Front-end: bibliotecas externas (Tabler, HTMX, Alpine, Tom Select) via CDN
+  com versão fixa e SRI. Ajustes visuais no CSS do projeto
+  (`static/css/agenda.css`), nunca no arquivo do CDN. O Tabler usa
+  `--tblr-*`: temas de terceiros baseados em `--bs-*` precisam de override,
+  conferido nos temas claro e escuro.
+- HTMX é melhoria progressiva: toda tela, filtro e modal funciona por URL
+  completa sem JavaScript; as respostas parciais só trocam fragmentos.
+- Permissões em `apps/core/permissions.py` (`eh_gestor`, `GestorMixin`,
+  `AdministradorMixin`). O controle real é na view (botão escondido é só
+  conveniência); testar anônimo, sem grupo, gestor e superuser em todas as
+  views.
+- Testes nunca dependem do relógio real para ordem ou versão (no Windows duas
+  gravações podem ter o mesmo instante): usar tempo controlado.
 
 ## Deploy (Render)
 - gunicorn, `build.sh` (install, collectstatic, migrate), DATABASE_URL,
@@ -191,3 +262,6 @@ do settings) estão em `legado/referencias/`: reproduza esses padrões.
 ## Comandos úteis
 - `python manage.py carregar_colaboradores legado/referencias/funcionarios.js` (`--dry-run` para simular)
 - `pytest`
+- No Windows, chamar `.venv/Scripts/python` (ex.: `.venv/Scripts/python -m
+  pytest`, `.venv/Scripts/python manage.py check`): o `python` do PATH aponta
+  para outro venv.
