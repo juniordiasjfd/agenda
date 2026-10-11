@@ -18,7 +18,7 @@
         {% for ausencia in ausencias %}
         <tr id="ausencia-{{ ausencia.pk }}">
           <td>
-            {{ ausencia.colaborador.nome }}
+            <a href="{% url 'ausencias:detalhe' ausencia.pk %}">{{ ausencia.colaborador.nome }}</a>
             {% if not ausencia.colaborador.ativo %}<span class="badge bg-secondary-lt ms-1">inativo</span>{% endif %}
             <div class="text-secondary small font-monospace">{{ ausencia.codigo }}</div>
           </td>
@@ -38,9 +38,18 @@
             {% endfor %}
           </td>
           <td class="text-nowrap">
+            <a href="{% url 'ausencias:detalhe' ausencia.pk %}" class="btn btn-sm" title="Detalhes">
+              <i class="fa-solid fa-eye"></i>
+            </a>
             {% if user.eh_gestor %}
             <a href="{% url 'ausencias:editar' ausencia.pk %}" class="btn btn-sm" title="Editar">
               <i class="fa-solid fa-pen"></i>
+            </a>
+            {% url 'ausencias:excluir' ausencia.pk as url_excluir %}
+            <a href="{{ url_excluir }}?next={{ voltar|urlencode }}" class="btn btn-sm btn-outline-danger" title="Excluir"
+               hx-get="{{ url_excluir }}?next={{ voltar|urlencode }}" hx-target="#modal-acao-conteudo"
+               data-bs-toggle="modal" data-bs-target="#modal-acao">
+              <i class="fa-solid fa-trash-can"></i>
             </a>
             {% endif %}
           </td>

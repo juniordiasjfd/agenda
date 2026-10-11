@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Excluir ausência — Agenda{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-status-top bg-danger"></div>
+      <div class="card-body text-center py-4">
+        <i class="fa-solid fa-trash-can text-danger fs-1 mb-3 d-block"></i>
+        <h3>Excluir ausência?</h3>
+        <div class="text-secondary">
+          {{ ausencia.titulo }} <span class="font-monospace">({{ ausencia.codigo }})</span> vai para a lixeira.
+          Qualquer gestor pode restaurá-la depois.
+        </div>
+        {% include "ausencias/_form_excluir.html" %}
+      </div>
+      <div class="card-footer d-flex">
+        <a href="{% url 'ausencias:detalhe' ausencia.pk %}" class="btn btn-link">Cancelar</a>
+        <button type="submit" form="form-excluir" class="btn btn-danger ms-auto">
+          <i class="fa-solid fa-trash-can me-2"></i>Excluir
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

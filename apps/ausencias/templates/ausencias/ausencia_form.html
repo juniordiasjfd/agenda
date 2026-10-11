@@ -69,7 +69,7 @@
           <span class="text-secondary small ms-2" x-cloak x-show="ativas >= maximo">Limite de {{ max_periodos }} períodos.</span>
         </div>
         <div class="card-footer d-flex">
-          <a href="{% url 'ausencias:lista' %}" class="btn btn-link">Cancelar</a>
+          <a href="{% if ausencia %}{% url 'ausencias:detalhe' ausencia.pk %}{% else %}{% url 'ausencias:lista' %}{% endif %}" class="btn btn-link">Cancelar</a>
           <button type="submit" class="btn btn-primary ms-auto">
             <i class="fa-solid fa-floppy-disk me-2"></i>{% if ausencia %}Salvar alterações{% else %}Registrar{% endif %}
           </button>

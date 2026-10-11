@@ -85,3 +85,21 @@ def test_editar_inexistente_nao_revela_para_quem_nao_pode(perfil):
     nome, client = perfil
     status = client.get(reverse('ausencias:editar', args=[999999])).status_code
     assert status == esperado(nome, gestor=True, ok=404)
+
+
+def test_detalhe(perfil, ausencia):
+    nome, client = perfil
+    assert client.get(reverse('ausencias:detalhe', args=[ausencia.pk])).status_code == esperado(nome, visualizar=True)
+
+
+def test_excluir_get(perfil, ausencia):
+    nome, client = perfil
+    assert client.get(reverse('ausencias:excluir', args=[ausencia.pk])).status_code == esperado(nome, gestor=True)
+
+
+def test_excluir_post(perfil, ausencia):
+    nome, client = perfil
+    status = client.post(reverse('ausencias:excluir', args=[ausencia.pk])).status_code
+    assert status == esperado(nome, gestor=True, ok=302)
+    ausencia.refresh_from_db()
+    assert ausencia.esta_excluido == (nome in ('gestor', 'admin'))

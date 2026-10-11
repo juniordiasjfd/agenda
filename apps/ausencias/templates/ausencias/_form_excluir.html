@@ -1,0 +1,5 @@
+{# Formulário de exclusão (modal e página). Contexto: ausencia, voltar. #}
+<form method="post" action="{% url 'ausencias:excluir' ausencia.pk %}" id="form-excluir">
+  {% csrf_token %}
+  {% if voltar %}<input type="hidden" name="next" value="{{ voltar }}">{% endif %}
+</form>

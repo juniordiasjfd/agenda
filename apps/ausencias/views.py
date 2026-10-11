@@ -1,9 +1,11 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
-from django.views.generic import ListView, TemplateView
+from django.views.generic import DetailView, ListView, TemplateView
 
 from apps.ausencias import ausencias_service
 from apps.ausencias.forms import FiltroAusenciasForm, montar_formularios
@@ -36,6 +38,9 @@ class AusenciasView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         kwargs['filtro'] = self.filtro
         kwargs['hoje'] = timezone.localdate()
+        # Para voltar à lista com os mesmos filtros depois de excluir. No
+        # parcial HTMX, a URL da requisição tem os mesmos parâmetros.
+        kwargs['voltar'] = reverse('ausencias:lista') + (f'?{self.request.GET.urlencode()}' if self.request.GET else '')
         return super().get_context_data(**kwargs)
 
 
@@ -67,7 +72,7 @@ class AusenciaFormMixin(GestorMixin):
                 periodos.aplicar_erros(erro)
             else:
                 messages.success(request, self.mensagem_sucesso(ausencia))
-                return redirect('ausencias:lista')
+                return redirect('ausencias:detalhe', ausencia.pk)
         return self.renderizar(cabecalho, periodos)
 
     def renderizar(self, cabecalho, periodos):
@@ -101,7 +106,7 @@ class AusenciaEditarView(AusenciaFormMixin, View):
         )
         if self.ausencia.esta_excluido:
             messages.warning(request, 'Esta ausência está na lixeira. Restaure antes de editar.')
-            return redirect('ausencias:lista')
+            return redirect('ausencias:detalhe', self.ausencia.pk)
         return super().dispatch(request, *args, **kwargs)
 
     def gravar(self, dados, periodos):
@@ -112,6 +117,52 @@ class AusenciaEditarView(AusenciaFormMixin, View):
 
     def mensagem_sucesso(self, ausencia):
         return f'Ausência {ausencia.codigo} atualizada ({ausencia.titulo}).'
+
+
+# ---------------------------------------------------------------------------
+# Detalhe e exclusão
+# ---------------------------------------------------------------------------
+def _destino_seguro(request, padrao):
+    """``next`` do POST/GET, se for deste site; senão ``padrao``."""
+    destino = request.POST.get('next') or request.GET.get('next') or ''
+    if url_has_allowed_host_and_scheme(destino, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return destino
+    return padrao
+
+
+class AusenciaDetalheView(LoginRequiredMixin, DetailView):
+    """Somente leitura; mostra também as que estão na lixeira."""
+    template_name = 'ausencias/ausencia_detalhe.html'
+    context_object_name = 'ausencia'
+
+    def get_queryset(self):
+        return Ausencia.todos.select_related(
+            'colaborador__departamento', 'tipo', 'criado_por', 'atualizado_por', 'excluido_por',
+        ).prefetch_related('periodos__situacao')
+
+    def get_context_data(self, **kwargs):
+        kwargs['active_nav'] = 'lixeira' if self.object.esta_excluido else 'ausencias'
+        return super().get_context_data(**kwargs)
+
+
+class AusenciaExcluirView(GestorMixin, View):
+    """GET: confirmação (conteúdo do modal com HTMX; página própria sem
+    JavaScript). POST: manda para a lixeira e volta à lista."""
+
+    def get(self, request, pk):
+        ausencia = get_object_or_404(Ausencia.objects.select_related('colaborador', 'tipo'), pk=pk)
+        template = 'ausencias/_modal_excluir.html' if request.headers.get('HX-Request') else 'ausencias/excluir.html'
+        return render(request, template, {
+            'ausencia': ausencia,
+            'voltar': _destino_seguro(request, ''),
+            'active_nav': 'ausencias',
+        })
+
+    def post(self, request, pk):
+        ausencia = get_object_or_404(Ausencia.todos, pk=pk)
+        ausencia = ausencias_service.excluir_ausencia(ausencia, request.user)
+        messages.success(request, f'Ausência {ausencia.codigo} enviada para a lixeira.')
+        return redirect(_destino_seguro(request, reverse('ausencias:lista')))
 
 
 # ---------------------------------------------------------------------------

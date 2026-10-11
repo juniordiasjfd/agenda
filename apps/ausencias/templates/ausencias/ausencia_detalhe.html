@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Ausência {{ ausencia.codigo }} — Agenda{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <div class="page-pretitle">
+          {% if ausencia.esta_excluido %}
+            <a href="{% url 'ausencias:lixeira' %}">Lixeira</a>
+          {% else %}
+            <a href="{% url 'ausencias:lista' %}">Ausências</a>
+          {% endif %}
+        </div>
+        <h2 class="page-title">
+          {{ ausencia.titulo }}
+          <span class="text-secondary ms-2 font-monospace">{{ ausencia.codigo }}</span>
+          {% if ausencia.esta_excluido %}<span class="badge bg-red-lt ms-2">Na lixeira</span>{% endif %}
+        </h2>
+      </div>
+      {% if user.eh_gestor %}
+      <div class="col-auto ms-auto d-flex gap-2">
+        {% if not ausencia.esta_excluido %}
+          <a href="{% url 'ausencias:editar' ausencia.pk %}" class="btn btn-primary">
+            <i class="fa-solid fa-pen me-2"></i>Editar
+          </a>
+          {% url 'ausencias:excluir' ausencia.pk as url_excluir %}
+          <a href="{{ url_excluir }}" class="btn btn-outline-danger"
+             hx-get="{{ url_excluir }}" hx-target="#modal-acao-conteudo"
+             data-bs-toggle="modal" data-bs-target="#modal-acao">
+            <i class="fa-solid fa-trash-can me-2"></i>Excluir
+          </a>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+{% if ausencia.esta_excluido %}
+<div class="alert alert-warning" role="alert">
+  <i class="fa-solid fa-trash-can me-2"></i>
+  Excluída em {{ ausencia.excluido_em|date:"d/m/Y H:i" }}
+  por {{ ausencia.excluido_por|default:"usuário removido" }}.
+  Não aparece na lista, no painel nem nos conflitos.
+</div>
+{% endif %}
+
+<div class="row row-cards">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Dados</h3></div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-5">Colaborador</dt>
+          <dd class="col-7">
+            {{ ausencia.colaborador.nome }}
+            {% if not ausencia.colaborador.ativo %}<span class="badge bg-secondary-lt ms-1">inativo</span>{% endif %}
+          </dd>
+          <dt class="col-5">Departamento</dt>
+          <dd class="col-7">{{ ausencia.colaborador.departamento.nome|default:"Sem departamento" }}</dd>
+          <dt class="col-5">Tipo</dt>
+          <dd class="col-7"><span class="legenda-cor" style="background-color: {{ ausencia.tipo.cor }}"></span>{{ ausencia.tipo.nome }}</dd>
+          <dt class="col-5">Total de dias</dt>
+          <dd class="col-7">{{ ausencia.total_dias }}</dd>
+          <dt class="col-5">Observações</dt>
+          <dd class="col-7">{{ ausencia.observacoes|default:"—"|linebreaksbr }}</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title">Auditoria</h3></div>
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-5">Criada em</dt>
+          <dd class="col-7">{{ ausencia.criado_em|date:"d/m/Y H:i" }}</dd>
+          <dt class="col-5">Criada por</dt>
+          <dd class="col-7">{{ ausencia.criado_por|default:"—" }}</dd>
+          <dt class="col-5">Atualizada em</dt>
+          <dd class="col-7">{{ ausencia.atualizado_em|date:"d/m/Y H:i" }}</dd>
+          <dt class="col-5">Atualizada por</dt>
+          <dd class="col-7">{{ ausencia.atualizado_por|default:"—" }}</dd>
+          {% if ausencia.esta_excluido %}
+          <dt class="col-5">Excluída em</dt>
+          <dd class="col-7">{{ ausencia.excluido_em|date:"d/m/Y H:i" }}</dd>
+          <dt class="col-5">Excluída por</dt>
+          <dd class="col-7">{{ ausencia.excluido_por|default:"—" }}</dd>
+          {% endif %}
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Períodos</h3></div>
+      <div class="table-responsive">
+        <table class="table table-vcenter card-table">
+          <thead>
+            <tr><th>#</th><th>Início</th><th>Fim</th><th class="text-end">Dias</th><th>Situação</th></tr>
+          </thead>
+          <tbody>
+            {% for periodo in ausencia.periodos.all %}
+            <tr>
+              <td class="text-secondary">{{ forloop.counter }}</td>
+              <td>{{ periodo.data_inicio|date:"d/m/Y" }}</td>
+              <td>{{ periodo.data_fim|date:"d/m/Y" }}</td>
+              <td class="text-end">{{ periodo.dias }}</td>
+              <td>
+                <span class="badge {% if periodo.situacao.conta_como_ausencia %}bg-blue-lt{% else %}bg-secondary-lt{% endif %}">{{ periodo.situacao.nome }}</span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block modals %}{% include "ausencias/_modal_acao.html" %}{% endblock %}
