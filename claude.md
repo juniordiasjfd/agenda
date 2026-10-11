@@ -176,5 +176,5 @@ do settings) estão em `legado/referencias/`: reproduza esses padrões.
 8. Deploy no Render.
 
 ## Comandos úteis
-- `python manage.py carregar_colaboradores legado/funcionarios.js`
+- `python manage.py carregar_colaboradores legado/referencias/funcionarios.js` (`--dry-run` para simular)
 - `pytest`
