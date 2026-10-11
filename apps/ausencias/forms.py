@@ -10,6 +10,9 @@ from django import forms
 
 from apps.ausencias import ausencias_service
 from apps.ausencias.ausencias_service import ANO_MAXIMO, ANO_MINIMO, MAX_PERIODOS, PeriodoInformado
+from apps.ausencias.models import SituacaoAusencia, TipoAusencia
+from apps.colaboradores.colaboradores_service import SEM_DEPARTAMENTO
+from apps.colaboradores.models import Departamento
 from apps.core.forms import TablerFormMixin
 
 
@@ -211,3 +214,41 @@ def montar_formularios(data=None, ausencia=None, usuario=None):
         },
     )
     return cabecalho, periodos
+
+
+class FiltroAusenciasForm(TablerFormMixin, forms.Form):
+    """Filtros da listagem (GET). Valor inválido é ignorado (cai em "todos").
+    Tipos e situações inativos continuam filtráveis: há registros com eles."""
+    nome = forms.CharField(
+        label='Nome', required=False, max_length=150,
+        widget=forms.TextInput(attrs={'placeholder': 'Buscar por nome', 'type': 'search'}),
+    )
+    departamento = forms.ChoiceField(label='Departamento', required=False)
+    tipo = forms.ModelChoiceField(label='Tipo', required=False, queryset=TipoAusencia.objects.all(), empty_label='Todos')
+    situacao = forms.ModelChoiceField(
+        label='Situação', required=False, queryset=SituacaoAusencia.objects.all(), empty_label='Todas',
+    )
+    de = forms.DateField(label='Ausência em: de', required=False, widget=CampoData())
+    ate = forms.DateField(label='até', required=False, widget=CampoData())
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['departamento'].choices = [
+            ('', 'Todos'),
+            (SEM_DEPARTAMENTO, 'Sem departamento'),
+            *((str(d.pk), d.nome) for d in Departamento.objects.all()),
+        ]
+
+    def filtros(self):
+        """Valores para ``ausencias_service.ausencias_filtradas``: só os
+        campos válidos (um campo inválido não derruba os demais)."""
+        self.is_valid()
+        dados = getattr(self, 'cleaned_data', {})  # sem GET o form não é validado
+        return {
+            'nome': dados.get('nome') or '',
+            'departamento': dados.get('departamento') or '',
+            'tipo': dados.get('tipo'),
+            'situacao': dados.get('situacao'),
+            'de': dados.get('de'),
+            'ate': dados.get('ate'),
+        }

@@ -163,6 +163,16 @@ class Ausencia(SoftDeleteMixin, AuditoriaBase):
         """"Colaborador - Tipo" (coluna Titulo do CSV)."""
         return f'{self.colaborador} - {self.tipo}'
 
+    # Usam ``periodos.all()``: com ``prefetch_related`` não consultam o banco.
+    @property
+    def total_dias(self):
+        return sum(periodo.dias for periodo in self.periodos.all())
+
+    @property
+    def situacoes(self):
+        """Situações dos períodos, sem repetir, na ordem em que aparecem."""
+        return list(dict.fromkeys(periodo.situacao for periodo in self.periodos.all()))
+
 
 class PeriodoAusencia(AuditoriaBase):
     """Intervalo de datas de uma ausência, com fim INCLUSIVO (10 a 10 = 1 dia).

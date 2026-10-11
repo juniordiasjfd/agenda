@@ -13,3 +13,13 @@
 [x-cloak] {
   display: none !important;
 }
+
+/* Quadradinho com a cor do tipo de ausência (lista, detalhe, legenda). */
+.legenda-cor {
+  display: inline-block;
+  width: .75rem;
+  height: .75rem;
+  border-radius: 2px;
+  margin-right: .4rem;
+  vertical-align: -1px;
+}

@@ -11,10 +11,12 @@ from datetime import date
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Exists, Min, OuterRef, Prefetch, Q
 
 from apps.ausencias.models import Ausencia, PeriodoAusencia, SituacaoAusencia, TipoAusencia
+from apps.colaboradores.colaboradores_service import SEM_DEPARTAMENTO
 from apps.colaboradores.models import Colaborador
+from apps.core.utils import normalizar_nome
 
 logger = logging.getLogger(__name__)
 
@@ -212,6 +214,61 @@ def colaborador_do_usuario(usuario):
     """Colaborador ATIVO vinculado ao usuário (pré-seleção no registro
     novo), ou ``None``."""
     return Colaborador.objects.filter(usuario_id=usuario.pk, ativo=True).first() if usuario.pk else None
+
+
+# ---------------------------------------------------------------------------
+# Listagem
+# ---------------------------------------------------------------------------
+def ausencias_filtradas(nome='', departamento='', tipo=None, situacao=None, de=None, ate=None, na_lixeira=False):
+    """Ausências para a listagem (e para a exportação CSV), já com
+    colaborador, departamento, tipo e períodos (com situação) carregados.
+
+    - ``nome``: trecho do nome do colaborador, sem considerar acentos,
+      maiúsculas e espaços duplos (``nome_normalizado``, como na lista de
+      colaboradores);
+    - ``departamento``: id, ``SEM_DEPARTAMENTO`` ou vazio (todos);
+    - ``tipo``/``situacao``: objeto ou ``None``;
+    - ``de``/``ate``: "ausência em": entra a ausência que tem algum período
+      cruzando o intervalo (fim inclusivo); um lado vazio fica em aberto.
+      Com ``situacao`` junto, o MESMO período precisa atender aos dois.
+    - ``na_lixeira``: só as excluídas (lixeira) em vez de só as ativas.
+
+    ``inicio`` (anotado) é a primeira data de início. Ordem: excluídas mais
+    recentes primeiro na lixeira; senão início mais recente primeiro.
+    """
+    if na_lixeira:
+        ausencias = Ausencia.todos.filter(excluido_em__isnull=False).select_related('excluido_por')
+    else:
+        ausencias = Ausencia.objects.all()
+
+    termo = normalizar_nome(nome)
+    if termo:
+        ausencias = ausencias.filter(colaborador__nome_normalizado__contains=termo)
+    if departamento == SEM_DEPARTAMENTO:
+        ausencias = ausencias.filter(colaborador__departamento__isnull=True)
+    elif departamento:
+        ausencias = ausencias.filter(colaborador__departamento_id=departamento)
+    if tipo is not None:
+        ausencias = ausencias.filter(tipo=tipo)
+
+    periodos = PeriodoAusencia.objects.filter(ausencia=OuterRef('pk'))
+    if situacao is not None:
+        periodos = periodos.filter(situacao=situacao)
+    if de is not None:
+        periodos = periodos.filter(data_fim__gte=de)
+    if ate is not None:
+        periodos = periodos.filter(data_inicio__lte=ate)
+    if situacao is not None or de is not None or ate is not None:
+        ausencias = ausencias.filter(Exists(periodos))
+
+    ordem = ['-excluido_em', '-pk'] if na_lixeira else ['-inicio', '-pk']
+    return (
+        ausencias
+        .select_related('colaborador__departamento', 'tipo')
+        .prefetch_related(Prefetch('periodos', queryset=PeriodoAusencia.objects.select_related('situacao')))
+        .annotate(inicio=Min('periodos__data_inicio'))
+        .order_by(*ordem)
+    )
 
 
 # ---------------------------------------------------------------------------

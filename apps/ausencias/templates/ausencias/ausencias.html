@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Ausências — Agenda{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <h2 class="page-title">Ausências</h2>
+      </div>
+      {% if user.eh_gestor %}
+      <div class="col-auto ms-auto">
+        <a href="{% url 'ausencias:registrar' %}" class="btn btn-primary">
+          <i class="fa-solid fa-calendar-plus me-2"></i>Registrar ausência
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-body border-bottom">
+    {# Sem JavaScript, é um GET comum; com HTMX troca só a tabela e atualiza a URL. #}
+    <form method="get" action="{% url 'ausencias:lista' %}" class="row g-2 align-items-end"
+          hx-get="{% url 'ausencias:lista' %}" hx-target="#tabela-ausencias" hx-swap="outerHTML"
+          hx-push-url="true" hx-trigger="submit, change">
+      <div class="col-md-4 col-lg-3">
+        <label class="form-label" for="{{ filtro.nome.id_for_label }}">{{ filtro.nome.label }}</label>
+        {{ filtro.nome }}
+      </div>
+      <div class="col-md-4 col-lg-2">
+        <label class="form-label" for="{{ filtro.departamento.id_for_label }}">{{ filtro.departamento.label }}</label>
+        {{ filtro.departamento }}
+      </div>
+      <div class="col-md-4 col-lg-2">
+        <label class="form-label" for="{{ filtro.tipo.id_for_label }}">{{ filtro.tipo.label }}</label>
+        {{ filtro.tipo }}
+      </div>
+      <div class="col-md-4 col-lg-2">
+        <label class="form-label" for="{{ filtro.situacao.id_for_label }}">{{ filtro.situacao.label }}</label>
+        {{ filtro.situacao }}
+      </div>
+      <div class="col-6 col-md-4 col-lg-auto">
+        <label class="form-label" for="{{ filtro.de.id_for_label }}">{{ filtro.de.label }}</label>
+        {{ filtro.de }}
+      </div>
+      <div class="col-6 col-md-4 col-lg-auto">
+        <label class="form-label" for="{{ filtro.ate.id_for_label }}">{{ filtro.ate.label }}</label>
+        {{ filtro.ate }}
+      </div>
+      <div class="col-12 d-flex gap-2 flex-wrap">
+        <button type="submit" class="btn btn-primary">
+          <i class="fa-solid fa-magnifying-glass me-2"></i>Filtrar
+        </button>
+        {# Atalho: carga completa para o formulário refletir o filtro. #}
+        <a href="{% url 'ausencias:lista' %}{% querystring de=hoje|date:'Y-m-d' ate=None page=None %}" class="btn">
+          <i class="fa-solid fa-forward me-2"></i>A partir de hoje
+        </a>
+        <a href="{% url 'ausencias:lista' %}" class="btn btn-link">Limpar filtros</a>
+      </div>
+    </form>
+  </div>
+
+  {% include "ausencias/_tabela_ausencias.html" %}
+</div>
+{% endblock %}

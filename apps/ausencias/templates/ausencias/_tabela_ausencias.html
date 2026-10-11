@@ -1,0 +1,93 @@
+{# Tabela da listagem (trocada por HTMX). Contexto: ausencias, page_obj, paginator, is_paginated. #}
+<div id="tabela-ausencias">
+  {% if ausencias %}
+  <div class="table-responsive">
+    <table class="table table-vcenter card-table">
+      <thead>
+        <tr>
+          <th>Colaborador</th>
+          <th>Departamento</th>
+          <th>Tipo</th>
+          <th>Períodos</th>
+          <th class="text-end">Dias</th>
+          <th>Situação</th>
+          <th class="w-1"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ausencia in ausencias %}
+        <tr id="ausencia-{{ ausencia.pk }}">
+          <td>
+            {{ ausencia.colaborador.nome }}
+            {% if not ausencia.colaborador.ativo %}<span class="badge bg-secondary-lt ms-1">inativo</span>{% endif %}
+            <div class="text-secondary small font-monospace">{{ ausencia.codigo }}</div>
+          </td>
+          <td class="text-secondary">{{ ausencia.colaborador.departamento.nome|default:"Sem departamento" }}</td>
+          <td class="text-nowrap">
+            <span class="legenda-cor" style="background-color: {{ ausencia.tipo.cor }}"></span>{{ ausencia.tipo.nome }}
+          </td>
+          <td class="text-nowrap small">
+            {% for periodo in ausencia.periodos.all %}
+              <div>{{ periodo.data_inicio|date:"d/m/Y" }} a {{ periodo.data_fim|date:"d/m/Y" }} <span class="text-secondary">({{ periodo.dias }} d)</span></div>
+            {% endfor %}
+          </td>
+          <td class="text-end">{{ ausencia.total_dias }}</td>
+          <td>
+            {% for situacao in ausencia.situacoes %}
+              <span class="badge {% if situacao.conta_como_ausencia %}bg-blue-lt{% else %}bg-secondary-lt{% endif %}">{{ situacao.nome }}</span>
+            {% endfor %}
+          </td>
+          <td class="text-nowrap">
+            {% if user.eh_gestor %}
+            <a href="{% url 'ausencias:editar' ausencia.pk %}" class="btn btn-sm" title="Editar">
+              <i class="fa-solid fa-pen"></i>
+            </a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body text-center text-secondary py-5">
+    <i class="fa-solid fa-calendar-xmark fs-1 mb-3 d-block"></i>
+    Nenhuma ausência encontrada.
+  </div>
+  {% endif %}
+
+  <div class="card-footer d-flex align-items-center">
+    <p class="m-0 text-secondary">
+      {{ paginator.count }} ausência{{ paginator.count|pluralize:"s" }}
+    </p>
+    {% if is_paginated %}
+    <ul class="pagination m-0 ms-auto">
+      <li class="page-item{% if not page_obj.has_previous %} disabled{% endif %}">
+        {% if page_obj.has_previous %}
+          {% querystring page=page_obj.previous_page_number as anterior %}
+          <a class="page-link" href="{{ anterior }}" hx-get="{{ anterior }}" hx-target="#tabela-ausencias"
+             hx-swap="outerHTML" hx-push-url="true">
+            <i class="fa-solid fa-chevron-left"></i> anterior
+          </a>
+        {% else %}
+          <span class="page-link"><i class="fa-solid fa-chevron-left"></i> anterior</span>
+        {% endif %}
+      </li>
+      <li class="page-item disabled">
+        <span class="page-link">página {{ page_obj.number }} de {{ paginator.num_pages }}</span>
+      </li>
+      <li class="page-item{% if not page_obj.has_next %} disabled{% endif %}">
+        {% if page_obj.has_next %}
+          {% querystring page=page_obj.next_page_number as proxima %}
+          <a class="page-link" href="{{ proxima }}" hx-get="{{ proxima }}" hx-target="#tabela-ausencias"
+             hx-swap="outerHTML" hx-push-url="true">
+            próxima <i class="fa-solid fa-chevron-right"></i>
+          </a>
+        {% else %}
+          <span class="page-link">próxima <i class="fa-solid fa-chevron-right"></i></span>
+        {% endif %}
+      </li>
+    </ul>
+    {% endif %}
+  </div>
+</div>

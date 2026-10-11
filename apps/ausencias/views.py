@@ -3,17 +3,40 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views import View
-from django.views.generic import TemplateView
+from django.views.generic import ListView, TemplateView
 
 from apps.ausencias import ausencias_service
-from apps.ausencias.forms import montar_formularios
+from apps.ausencias.forms import FiltroAusenciasForm, montar_formularios
 from apps.ausencias.models import Ausencia
 from apps.core.permissions import GestorMixin
 
 
-class AusenciasView(LoginRequiredMixin, TemplateView):
-    template_name = 'ausencias/em_construcao.html'
-    extra_context = {'active_nav': 'ausencias', 'titulo': 'Ausências'}
+# ---------------------------------------------------------------------------
+# Listagem
+# ---------------------------------------------------------------------------
+class AusenciasView(LoginRequiredMixin, ListView):
+    """Lista com filtros por GET (URL compartilhável). Com HTMX mirando a
+    tabela, devolve só o parcial; sem JavaScript, a página inteira."""
+    template_name = 'ausencias/ausencias.html'
+    template_parcial = 'ausencias/_tabela_ausencias.html'
+    alvo_htmx = 'tabela-ausencias'
+    context_object_name = 'ausencias'
+    paginate_by = 25
+    extra_context = {'active_nav': 'ausencias'}
+
+    def get_queryset(self):
+        self.filtro = FiltroAusenciasForm(self.request.GET or None)
+        return ausencias_service.ausencias_filtradas(**self.filtro.filtros())
+
+    def get_template_names(self):
+        if self.request.headers.get('HX-Target') == self.alvo_htmx:
+            return [self.template_parcial]
+        return [self.template_name]
+
+    def get_context_data(self, **kwargs):
+        kwargs['filtro'] = self.filtro
+        kwargs['hoje'] = timezone.localdate()
+        return super().get_context_data(**kwargs)
 
 
 # ---------------------------------------------------------------------------
