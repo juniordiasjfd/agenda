@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Convites — Agenda{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="page-pretitle">Administração</div>
+    <h2 class="page-title">Convites</h2>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row row-cards">
+  <div class="col-lg-4">
+    <div class="card">
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="card-header">
+          <h3 class="card-title">Novo convite</h3>
+        </div>
+        <div class="card-body">
+          {% for erro in form.non_field_errors %}
+            <div class="alert alert-danger" role="alert">{{ erro }}</div>
+          {% endfor %}
+          {% include "includes/_campo.html" with campo=form.email %}
+          {% include "includes/_campo.html" with campo=form.validade_dias %}
+          <label class="form-check">
+            {{ form.enviar_por_email }}
+            <span class="form-check-label">{{ form.enviar_por_email.label }}</span>
+          </label>
+        </div>
+        <div class="card-footer text-end">
+          <button type="submit" class="btn btn-primary">
+            <i class="fa-solid fa-paper-plane me-2"></i>Criar convite
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card">
+      {% if convites %}
+      <div class="table-responsive">
+        <table class="table table-vcenter card-table">
+          <thead>
+            <tr>
+              <th>E-mail</th>
+              <th>Situação</th>
+              <th>Expira em</th>
+              <th>Criado por</th>
+              <th class="w-1"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for convite in convites %}
+            <tr>
+              <td><a href="{% url 'usuarios:convite_detalhe' convite.pk %}">{{ convite.email }}</a></td>
+              <td>{% include "usuarios/_convite_estado.html" %}</td>
+              <td class="text-secondary text-nowrap">
+                {% if convite.usado_em %}usado em {{ convite.usado_em|date:"d/m/Y H:i" }}{% else %}{{ convite.expira_em|date:"d/m/Y H:i" }}{% endif %}
+              </td>
+              <td class="text-secondary">{{ convite.criado_por|default:"—" }}</td>
+              <td class="text-nowrap">
+                {% if convite.pendente %}
+                <a href="{% url 'usuarios:convite_detalhe' convite.pk %}" class="btn btn-sm" title="Ver e copiar o link">
+                  <i class="fa-solid fa-link"></i>
+                </a>
+                <form method="post" action="{% url 'usuarios:convite_reenviar' convite.pk %}" class="d-inline">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm" title="Reenviar por e-mail">
+                    <i class="fa-solid fa-envelope"></i>
+                  </button>
+                </form>
+                {% endif %}
+                {% if not convite.usado_em %}
+                <form method="post" action="{% url 'usuarios:convite_revogar' convite.pk %}" class="d-inline"
+                      x-data @submit="if (!confirm('Revogar o convite de {{ convite.email|escapejs }}? O link deixará de funcionar.')) $event.preventDefault()">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-outline-danger" title="Revogar">
+                    <i class="fa-solid fa-trash"></i>
+                  </button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card-body text-center text-secondary py-5">
+        <i class="fa-solid fa-envelope-open fs-1 mb-3 d-block"></i>
+        Nenhum convite criado ainda.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,15 +1,15 @@
 from django.contrib import messages
 from django.contrib.auth import views as auth_views
 from django.http import Http404
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.views import View
-from django.views.generic import FormView, ListView, TemplateView
+from django.views.generic import DetailView, FormView, ListView, TemplateView
 
 from apps.core.permissions import AdministradorMixin
 from apps.usuarios import usuarios_service
-from apps.usuarios.forms import AceitarConviteForm, AutocadastroForm, LoginForm
-from apps.usuarios.models import User
+from apps.usuarios.forms import AceitarConviteForm, AutocadastroForm, ConviteForm, LoginForm
+from apps.usuarios.models import Convite, User
 
 
 # ---------------------------------------------------------------------------
@@ -145,3 +145,86 @@ class AceitarConviteView(FormView):
             return self.form_invalid(form)
         messages.success(self.request, 'Conta criada! Entre com seu e-mail e a senha que você escolheu.')
         return redirect('usuarios:login')
+
+
+# ---------------------------------------------------------------------------
+# Convites: gestão (só administrador)
+# ---------------------------------------------------------------------------
+def _link_convite(request, convite):
+    return request.build_absolute_uri(reverse('usuarios:convite_aceitar', args=[convite.token]))
+
+
+def _avisar_envio(request, convite, enviado):
+    if enviado:
+        messages.success(request, f'Convite enviado por e-mail para {convite.email}.')
+    else:
+        messages.warning(
+            request,
+            f'Não foi possível enviar o e-mail para {convite.email}. Copie o link e envie de outra forma.',
+        )
+
+
+class ConvitesView(AdministradorMixin, FormView):
+    form_class = ConviteForm
+    template_name = 'usuarios/convites.html'
+    extra_context = {'active_nav': 'convites'}
+
+    def get_context_data(self, **kwargs):
+        convites = list(usuarios_service.listar_convites())
+        for convite in convites:
+            convite.link = _link_convite(self.request, convite)
+        kwargs['convites'] = convites
+        return super().get_context_data(**kwargs)
+
+    def form_valid(self, form):
+        try:
+            convite = usuarios_service.criar_convite(
+                form.cleaned_data['email'], form.cleaned_data['validade_dias'], criado_por=self.request.user,
+            )
+        except usuarios_service.ConviteRecusado as erro:
+            form.add_error('email', str(erro))
+            return self.form_invalid(form)
+        messages.success(self.request, f'Convite criado para {convite.email}.')
+        if form.cleaned_data['enviar_por_email']:
+            enviado = usuarios_service.enviar_convite(convite, _link_convite(self.request, convite))
+            _avisar_envio(self.request, convite, enviado)
+        return redirect('usuarios:convite_detalhe', pk=convite.pk)
+
+
+class ConviteDetalheView(AdministradorMixin, DetailView):
+    model = Convite
+    template_name = 'usuarios/convite_detalhe.html'
+    extra_context = {'active_nav': 'convites'}
+
+    def get_context_data(self, **kwargs):
+        kwargs['link'] = _link_convite(self.request, self.object)
+        return super().get_context_data(**kwargs)
+
+
+class ReenviarConviteView(AdministradorMixin, View):
+    http_method_names = ['post']
+
+    def post(self, request, pk):
+        convite = get_object_or_404(Convite, pk=pk)
+        try:
+            enviado = usuarios_service.enviar_convite(convite, _link_convite(request, convite))
+        except usuarios_service.ConviteInvalido:
+            messages.error(request, 'Só é possível enviar convites pendentes.')
+        else:
+            _avisar_envio(request, convite, enviado)
+        return redirect('usuarios:convite_detalhe', pk=convite.pk)
+
+
+class RevogarConviteView(AdministradorMixin, View):
+    http_method_names = ['post']
+
+    def post(self, request, pk):
+        try:
+            email = usuarios_service.revogar_convite(pk)
+        except Convite.DoesNotExist:
+            raise Http404('Convite não encontrado.')
+        except usuarios_service.ConviteRecusado as erro:
+            messages.error(request, str(erro))
+        else:
+            messages.success(request, f'Convite para {email} revogado.')
+        return redirect('usuarios:convites')

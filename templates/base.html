@@ -50,6 +50,9 @@
                   <span class="badge bg-red text-red-fg ms-auto">{{ cadastros_pendentes }}</span>
                 {% endif %}
               </a>
+              <a class="dropdown-item{% if active_nav == 'convites' %} active{% endif %}" href="{% url 'usuarios:convites' %}">
+                <i class="fa-solid fa-envelope-open-text me-2"></i>Convites
+              </a>
               <a class="dropdown-item" href="{% url 'admin:index' %}">
                 <i class="fa-solid fa-gears me-2"></i>Admin do Django
               </a>

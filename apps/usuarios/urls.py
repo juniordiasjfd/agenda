@@ -87,4 +87,10 @@ urlpatterns = [
         ),
         name='password_change_done',
     ),
+
+    # Convites (só administrador).
+    path('administracao/convites/', views.ConvitesView.as_view(), name='convites'),
+    path('administracao/convites/<int:pk>/', views.ConviteDetalheView.as_view(), name='convite_detalhe'),
+    path('administracao/convites/<int:pk>/reenviar/', views.ReenviarConviteView.as_view(), name='convite_reenviar'),
+    path('administracao/convites/<int:pk>/revogar/', views.RevogarConviteView.as_view(), name='convite_revogar'),
 ]

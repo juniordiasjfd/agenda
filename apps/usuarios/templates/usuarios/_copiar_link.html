@@ -1,0 +1,17 @@
+{# Campo só leitura com botão "Copiar". Uso: {% include "usuarios/_copiar_link.html" with link=... %} #}
+{# navigator.clipboard só existe em contexto seguro (HTTPS/localhost); fora dele, seleciona e usa execCommand. #}
+<div class="input-group" x-data="{ copiado: false }">
+  <input type="text" class="form-control" value="{{ link }}" readonly x-ref="link" @focus="$el.select()"
+         aria-label="Link do convite">
+  <button type="button" class="btn" :class="copiado ? 'btn-success' : ''"
+          @click="
+            const pronto = () => { copiado = true; setTimeout(() => copiado = false, 2000) };
+            if (navigator.clipboard && window.isSecureContext) {
+              navigator.clipboard.writeText($refs.link.value).then(pronto);
+            } else {
+              $refs.link.select(); document.execCommand('copy'); pronto();
+            }">
+    <i class="fa-solid me-1" :class="copiado ? 'fa-check' : 'fa-copy'"></i>
+    <span x-text="copiado ? 'Copiado!' : 'Copiar'">Copiar</span>
+  </button>
+</div>

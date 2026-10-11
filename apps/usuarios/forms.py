@@ -95,8 +95,27 @@ class AutocadastroForm(TablerFormMixin, SetPasswordMixin, forms.Form):
 
 
 # ---------------------------------------------------------------------------
-# Convite (aceite público)
+# Convite
 # ---------------------------------------------------------------------------
+class ConviteForm(TablerFormMixin, forms.Form):
+    """Criação de convite pelo administrador. As regras (usuário existente,
+    convite pendente) ficam em ``usuarios_service.criar_convite``."""
+    email = forms.EmailField(
+        label='E-mail do convidado', max_length=254,
+        widget=forms.EmailInput(attrs={'autocomplete': 'off'}),
+    )
+    validade_dias = forms.IntegerField(
+        label='Validade (dias)', min_value=1, max_value=90,
+        initial=usuarios_service.VALIDADE_PADRAO_DIAS,
+    )
+    enviar_por_email = forms.BooleanField(
+        label='Enviar o convite por e-mail agora', required=False, initial=True,
+    )
+
+    def clean_email(self):
+        return User.objects.normalize_email(self.cleaned_data['email'])
+
+
 class AceitarConviteForm(TablerFormMixin, SetPasswordMixin, forms.Form):
     """Nome e senha. O e-mail NÃO é campo: vem do convite e é só exibido."""
     nome = forms.CharField(

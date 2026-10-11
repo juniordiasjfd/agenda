@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Convite — Agenda{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="page-pretitle">
+      <a href="{% url 'usuarios:convites' %}">Convites</a>
+    </div>
+    <h2 class="page-title">Convite para {{ convite.email }}</h2>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-4">Situação</dt>
+          <dd class="col-sm-8">{% include "usuarios/_convite_estado.html" %}</dd>
+          <dt class="col-sm-4">Expira em</dt>
+          <dd class="col-sm-8">{{ convite.expira_em|date:"d/m/Y H:i" }}</dd>
+          {% if convite.usado_em %}
+          <dt class="col-sm-4">Usado em</dt>
+          <dd class="col-sm-8">{{ convite.usado_em|date:"d/m/Y H:i" }}</dd>
+          {% endif %}
+          <dt class="col-sm-4">Criado por</dt>
+          <dd class="col-sm-8">{{ convite.criado_por|default:"—" }} em {{ convite.criado_em|date:"d/m/Y H:i" }}</dd>
+        </dl>
+
+        {% if convite.pendente %}
+        <hr>
+        <label class="form-label">Link do convite</label>
+        {% include "usuarios/_copiar_link.html" with link=link %}
+        <small class="form-hint mt-2">
+          Quem tiver este link pode criar a conta de {{ convite.email }}. Envie só para a pessoa convidada.
+        </small>
+        {% endif %}
+      </div>
+      <div class="card-footer d-flex">
+        <a href="{% url 'usuarios:convites' %}" class="btn btn-link">Voltar</a>
+        <div class="ms-auto d-flex gap-2">
+          {% if not convite.usado_em %}
+          <form method="post" action="{% url 'usuarios:convite_revogar' convite.pk %}"
+                x-data @submit="if (!confirm('Revogar este convite? O link deixará de funcionar.')) $event.preventDefault()">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger">
+              <i class="fa-solid fa-trash me-2"></i>Revogar
+            </button>
+          </form>
+          {% endif %}
+          {% if convite.pendente %}
+          <form method="post" action="{% url 'usuarios:convite_reenviar' convite.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary">
+              <i class="fa-solid fa-envelope me-2"></i>Enviar por e-mail
+            </button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

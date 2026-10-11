@@ -5,6 +5,7 @@ As views só traduzem requisição/resposta; toda decisão fica aqui.
 
 import logging
 import uuid
+from datetime import timedelta
 
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import Group
@@ -219,3 +220,72 @@ def aceitar_convite(token, nome, senha):
         convite.save(update_fields=['usado_em', 'atualizado_em'])
     logger.info('Convite aceito: %s.', usuario.email)
     return usuario
+
+
+# ---------------------------------------------------------------------------
+# Convites: gestão (só administrador)
+# ---------------------------------------------------------------------------
+VALIDADE_PADRAO_DIAS = 7
+
+
+class ConviteRecusado(Exception):
+    """Operação de convite não permitida; a mensagem vai para o usuário."""
+
+
+def _convites_pendentes():
+    return Convite.objects.filter(usado_em__isnull=True, expira_em__gt=timezone.now())
+
+
+def listar_convites():
+    return Convite.objects.select_related('criado_por').order_by('-criado_em', '-pk')
+
+
+def criar_convite(email, validade_dias, criado_por):
+    """Cria convite para ``email`` válido por ``validade_dias``.
+
+    Recusa (``ConviteRecusado``) e-mail que já tem usuário ou que já tem
+    convite pendente não expirado. Não depende dos domínios de autocadastro:
+    o administrador pode convidar qualquer e-mail.
+    """
+    email = User.objects.normalize_email(email)
+    if User.objects.filter(email__iexact=email).exists():
+        raise ConviteRecusado('Já existe um usuário com este e-mail.')
+    if _convites_pendentes().filter(email__iexact=email).exists():
+        raise ConviteRecusado(
+            'Já existe um convite pendente para este e-mail. Reenvie ou revogue o convite existente.'
+        )
+    convite = Convite.objects.create(
+        email=email,
+        expira_em=timezone.now() + timedelta(days=validade_dias),
+        criado_por=criado_por,
+        atualizado_por=criado_por,
+    )
+    logger.info('Convite criado para %s por %s.', email, getattr(criado_por, 'email', None))
+    return convite
+
+
+def enviar_convite(convite, url_aceite):
+    """Envia o link (absoluto) do convite por e-mail. Só convite pendente
+    (senão ``ConviteInvalido``). Devolve se o envio deu certo; falha de SMTP
+    não propaga."""
+    if not convite.pendente:
+        raise ConviteInvalido()
+    return enviar_email(
+        'usuarios/emails/convite_assunto.txt',
+        'usuarios/emails/convite.txt',
+        {'convite': convite, 'url_aceite': url_aceite},
+        [convite.email],
+    )
+
+
+def revogar_convite(convite_id):
+    """Exclui convite ainda não usado (pendente ou expirado). Convite usado
+    fica como histórico (``ConviteRecusado``). Devolve o e-mail do convite."""
+    with transaction.atomic():
+        convite = Convite.objects.select_for_update().get(pk=convite_id)
+        if convite.usado_em is not None:
+            raise ConviteRecusado('Este convite já foi usado e não pode ser revogado.')
+        email = convite.email
+        convite.delete()
+    logger.info('Convite revogado: %s.', email)
+    return email

@@ -1,0 +1,15 @@
+{% autoescape off %}Olá.
+
+Você recebeu um convite{% if convite.criado_por %} de {{ convite.criado_por.get_full_name }}{% endif %} para usar a Agenda, o sistema de registro de ausências da Scriba.
+
+Para criar a sua conta ({{ convite.email }}), acesse o link abaixo e escolha uma senha:
+
+{{ url_aceite }}
+
+O convite vale até {{ convite.expira_em|date:"d/m/Y, H:i" }} e só pode ser usado uma vez.
+
+Se você não esperava este convite, ignore este e-mail.
+
+Agenda — Scriba
+(Mensagem automática, não responda.)
+{% endautoescape %}
