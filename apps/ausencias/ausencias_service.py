@@ -13,7 +13,8 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
 
-from apps.ausencias.models import Ausencia, PeriodoAusencia, SituacaoAusencia
+from apps.ausencias.models import Ausencia, PeriodoAusencia, SituacaoAusencia, TipoAusencia
+from apps.colaboradores.models import Colaborador
 
 logger = logging.getLogger(__name__)
 
@@ -383,3 +384,155 @@ def validar_ausencia(colaborador, tipo, periodos, ausencia=None):
     _validar_periodos(colaborador, resolvidos, ausencia, erros)
     erros.levantar()
     return resolvidos
+
+
+# ---------------------------------------------------------------------------
+# Gravação
+# ---------------------------------------------------------------------------
+# Ordem das travas, sempre a mesma para não haver deadlock: primeiro a linha
+# da Ausencia (edição/exclusão/restauração), depois os Colaboradores, por pk.
+# Travar o colaborador serializa os envios dele: a checagem de sobreposição
+# só lê o banco depois que o envio concorrente gravou (READ COMMITTED).
+def _travar_colaboradores(*ids):
+    """``{pk: Colaborador}`` recarregados e travados (``select_for_update``)."""
+    ids = {pk for pk in ids if pk is not None}
+    return {c.pk: c for c in Colaborador.objects.select_for_update().filter(pk__in=ids).order_by('pk')}
+
+
+def _travar_ausencia(ausencia):
+    return Ausencia.todos.select_for_update().get(pk=ausencia.pk)
+
+
+def _recarregar_tipo(tipo):
+    return TipoAusencia.objects.filter(pk=tipo.pk).first() if tipo is not None else None
+
+
+def _criar_periodo(ausencia, periodo, usuario):
+    return PeriodoAusencia.objects.create(
+        ausencia=ausencia,
+        data_inicio=periodo.data_inicio,
+        data_fim=periodo.data_fim,
+        situacao=periodo.situacao,
+        criado_por=usuario,
+        atualizado_por=usuario,
+    )
+
+
+def criar_ausencia(colaborador, tipo, periodos, observacoes, usuario):
+    """Registra uma ausência com seus períodos (``PeriodoInformado``, sem
+    ``id``). Valida tudo (``validar_ausencia``) com o colaborador travado e
+    grava numa transação: ou entra tudo, ou nada. Levanta
+    ``ErroValidacaoAusencia``. Devolve a ``Ausencia`` criada.
+    """
+    pk_colaborador = colaborador.pk if colaborador is not None else None
+    with transaction.atomic():
+        colaborador = _travar_colaboradores(pk_colaborador).get(pk_colaborador)
+        tipo = _recarregar_tipo(tipo)
+        resolvidos = validar_ausencia(colaborador, tipo, periodos)
+        ausencia = Ausencia.objects.create(
+            colaborador=colaborador,
+            tipo=tipo,
+            observacoes=(observacoes or '').strip(),
+            codigo=gerar_codigo(),
+            criado_por=usuario,
+            atualizado_por=usuario,
+        )
+        for periodo in resolvidos:
+            _criar_periodo(ausencia, periodo, usuario)
+    logger.info('Ausência %s registrada (%s, %d período(s)).', ausencia.codigo, ausencia.titulo, len(resolvidos))
+    return ausencia
+
+
+def atualizar_ausencia(ausencia, colaborador, tipo, periodos, observacoes, usuario):
+    """Substitui o envio inteiro: cabeçalho e períodos.
+
+    Reconciliação pelos ``PeriodoInformado.id``: com id, o período existente
+    é alterado (e só ganha ``atualizado_por`` se algo mudou); sem id, é
+    criado; os existentes que não vierem na lista são apagados. Situação
+    ``None`` = a padrão. Ausência na lixeira não é editável (restaure antes).
+    Levanta ``ErroValidacaoAusencia``. Devolve a ``Ausencia`` atualizada
+    (instância nova, recarregada do banco).
+    """
+    with transaction.atomic():
+        gravada = _travar_ausencia(ausencia)
+        if gravada.esta_excluido:
+            raise ErroValidacaoAusencia(['Este registro está na lixeira: restaure-o antes de editar.'])
+        pk_colaborador = colaborador.pk if colaborador is not None else None
+        colaborador = _travar_colaboradores(gravada.colaborador_id, pk_colaborador).get(pk_colaborador)
+        tipo = _recarregar_tipo(tipo)
+        resolvidos = validar_ausencia(colaborador, tipo, periodos, ausencia=gravada)
+
+        existentes = {p.pk: p for p in gravada.periodos.all()}
+        for periodo in resolvidos:
+            if periodo.id is None:
+                _criar_periodo(gravada, periodo, usuario)
+                continue
+            atual = existentes.pop(periodo.id)
+            novo = (periodo.data_inicio, periodo.data_fim, periodo.situacao.pk)
+            if (atual.data_inicio, atual.data_fim, atual.situacao_id) != novo:
+                atual.data_inicio, atual.data_fim, atual.situacao = periodo.data_inicio, periodo.data_fim, periodo.situacao
+                atual.atualizado_por = usuario
+                atual.save()
+        if existentes:
+            PeriodoAusencia.objects.filter(pk__in=existentes).delete()
+
+        gravada.colaborador = colaborador
+        gravada.tipo = tipo
+        gravada.observacoes = (observacoes or '').strip()
+        gravada.atualizado_por = usuario
+        gravada.save()
+    logger.info('Ausência %s atualizada (%s, %d período(s)).', gravada.codigo, gravada.titulo, len(resolvidos))
+    return gravada
+
+
+def excluir_ausencia(ausencia, usuario):
+    """Exclusão lógica (vai para a lixeira). Idempotente: se já estiver
+    excluída, nada muda (mantém quando e quem excluiu primeiro)."""
+    with transaction.atomic():
+        gravada = _travar_ausencia(ausencia)
+        if not gravada.esta_excluido:
+            gravada.excluir(usuario)
+            logger.info('Ausência %s excluída (lixeira).', gravada.codigo)
+    return gravada
+
+
+def restaurar_ausencia(ausencia, usuario):
+    """Tira da lixeira, se os períodos ainda não conflitarem com o que foi
+    registrado depois da exclusão; senão levanta ``ErroValidacaoAusencia``
+    (conflitos por período, na ordem de ``ausencia.periodos``) e a ausência
+    continua excluída. Idempotente se já estiver ativa.
+
+    Colaborador, tipo ou situação que ficaram inativos não impedem: a
+    ausência volta como era.
+    """
+    with transaction.atomic():
+        gravada = _travar_ausencia(ausencia)
+        if not gravada.esta_excluido:
+            return gravada
+        colaborador = _travar_colaboradores(gravada.colaborador_id)[gravada.colaborador_id]
+        periodos = list(gravada.periodos.select_related('situacao'))
+        erros = _Erros()
+        for conflito in periodos_conflitantes(colaborador, periodos, excluir_ausencia=gravada):
+            erros.periodo(conflito.indice, conflito.mensagem)
+        if erros.por_periodo:
+            erros.geral('Não é possível restaurar: há ausências registradas no mesmo período.')
+        erros.levantar()
+        gravada.restaurar()
+        gravada.atualizado_por = usuario
+        gravada.save(update_fields=['atualizado_por', 'atualizado_em'])
+    logger.info('Ausência %s restaurada.', gravada.codigo)
+    return gravada
+
+
+def apagar_definitivamente(ausencia):
+    """Apaga do banco a ausência e seus períodos. Só para o administrador (a
+    checagem de perfil fica na view, etapa 5) e só para registro que já está
+    na lixeira (``ErroValidacaoAusencia`` se não estiver). Devolve o código."""
+    with transaction.atomic():
+        gravada = _travar_ausencia(ausencia)
+        if not gravada.esta_excluido:
+            raise ErroValidacaoAusencia(['Só é possível apagar definitivamente um registro que está na lixeira.'])
+        codigo = gravada.codigo
+        gravada.delete()
+    logger.info('Ausência %s apagada definitivamente.', codigo)
+    return codigo
