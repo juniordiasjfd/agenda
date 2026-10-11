@@ -8,6 +8,7 @@ import pytest
 from django.urls import reverse
 
 from apps.ausencias import ausencias_service
+from apps.ausencias.models import Ausencia
 from apps.ausencias.tests.conftest import d
 
 pytestmark = pytest.mark.django_db
@@ -103,3 +104,28 @@ def test_excluir_post(perfil, ausencia):
     assert status == esperado(nome, gestor=True, ok=302)
     ausencia.refresh_from_db()
     assert ausencia.esta_excluido == (nome in ('gestor', 'admin'))
+
+
+@pytest.fixture
+def excluida(ausencia, admin):
+    return ausencias_service.excluir_ausencia(ausencia, admin)
+
+
+def test_restaurar_post(perfil, excluida):
+    nome, client = perfil
+    status = client.post(reverse('ausencias:restaurar', args=[excluida.pk])).status_code
+    assert status == esperado(nome, gestor=True, ok=302)
+    excluida.refresh_from_db()
+    assert excluida.esta_excluido == (nome not in ('gestor', 'admin'))
+
+
+def test_apagar_get(perfil, excluida):
+    nome, client = perfil
+    assert client.get(reverse('ausencias:apagar', args=[excluida.pk])).status_code == esperado(nome, admin=True)
+
+
+def test_apagar_post(perfil, excluida):
+    nome, client = perfil
+    status = client.post(reverse('ausencias:apagar', args=[excluida.pk]), {'confirmacao': excluida.codigo}).status_code
+    assert status == esperado(nome, admin=True, ok=302)
+    assert Ausencia.todos.filter(pk=excluida.pk).exists() == (nome != 'admin')

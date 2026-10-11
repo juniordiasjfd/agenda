@@ -5,12 +5,12 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
-from django.views.generic import DetailView, ListView, TemplateView
+from django.views.generic import DetailView, ListView
 
 from apps.ausencias import ausencias_service
-from apps.ausencias.forms import FiltroAusenciasForm, montar_formularios
+from apps.ausencias.forms import ConfirmarApagarForm, FiltroAusenciasForm, FiltroLixeiraForm, montar_formularios
 from apps.ausencias.models import Ausencia
-from apps.core.permissions import GestorMixin
+from apps.core.permissions import AdministradorMixin, GestorMixin
 
 
 # ---------------------------------------------------------------------------
@@ -168,6 +168,67 @@ class AusenciaExcluirView(GestorMixin, View):
 # ---------------------------------------------------------------------------
 # Lixeira
 # ---------------------------------------------------------------------------
-class LixeiraView(LoginRequiredMixin, TemplateView):
-    template_name = 'ausencias/em_construcao.html'
-    extra_context = {'active_nav': 'lixeira', 'titulo': 'Lixeira'}
+class LixeiraView(LoginRequiredMixin, ListView):
+    """Visível a qualquer autenticado; as ações são só para gestor
+    (restaurar) e administrador (apagar de vez)."""
+    template_name = 'ausencias/lixeira.html'
+    context_object_name = 'ausencias'
+    paginate_by = 25
+    extra_context = {'active_nav': 'lixeira'}
+
+    def get_queryset(self):
+        self.filtro = FiltroLixeiraForm(self.request.GET or None)
+        return ausencias_service.ausencias_filtradas(na_lixeira=True, **self.filtro.filtros())
+
+    def get_context_data(self, **kwargs):
+        kwargs['filtro'] = self.filtro
+        kwargs['voltar'] = self.request.get_full_path()
+        return super().get_context_data(**kwargs)
+
+
+def _na_lixeira(pk):
+    return get_object_or_404(Ausencia.todos.filter(excluido_em__isnull=False), pk=pk)
+
+
+class AusenciaRestaurarView(GestorMixin, View):
+    """Tira da lixeira. Em conflito com o que foi registrado depois da
+    exclusão, mostra as mensagens do serviço e ela continua na lixeira."""
+    http_method_names = ['post']
+
+    def post(self, request, pk):
+        ausencia = _na_lixeira(pk)
+        try:
+            ausencia = ausencias_service.restaurar_ausencia(ausencia, request.user)
+        except ausencias_service.ErroValidacaoAusencia as erro:
+            for mensagem in erro.mensagens():
+                messages.error(request, mensagem)
+            return redirect(_destino_seguro(request, reverse('ausencias:lixeira')))
+        messages.success(request, f'Ausência {ausencia.codigo} restaurada.')
+        return redirect('ausencias:detalhe', ausencia.pk)
+
+
+class AusenciaApagarView(AdministradorMixin, View):
+    """Apaga do banco (só administrador, só da lixeira), depois de digitar o
+    código da ausência."""
+    template_name = 'ausencias/apagar.html'
+
+    def get(self, request, pk):
+        ausencia = _na_lixeira(pk)
+        return self.renderizar(ausencia, ConfirmarApagarForm(ausencia=ausencia))
+
+    def post(self, request, pk):
+        ausencia = _na_lixeira(pk)
+        form = ConfirmarApagarForm(request.POST, ausencia=ausencia)
+        if not form.is_valid():
+            return self.renderizar(ausencia, form)
+        try:
+            codigo = ausencias_service.apagar_definitivamente(ausencia)
+        except ausencias_service.ErroValidacaoAusencia as erro:
+            for mensagem in erro.mensagens():
+                messages.error(request, mensagem)
+            return redirect('ausencias:detalhe', ausencia.pk)
+        messages.success(request, f'Ausência {codigo} apagada definitivamente.')
+        return redirect('ausencias:lixeira')
+
+    def renderizar(self, ausencia, form):
+        return render(self.request, self.template_name, {'ausencia': ausencia, 'form': form, 'active_nav': 'lixeira'})

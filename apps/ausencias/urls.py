@@ -11,5 +11,7 @@ urlpatterns = [
     path('<int:pk>/', views.AusenciaDetalheView.as_view(), name='detalhe'),
     path('<int:pk>/editar/', views.AusenciaEditarView.as_view(), name='editar'),
     path('<int:pk>/excluir/', views.AusenciaExcluirView.as_view(), name='excluir'),
+    path('<int:pk>/restaurar/', views.AusenciaRestaurarView.as_view(), name='restaurar'),
+    path('<int:pk>/apagar/', views.AusenciaApagarView.as_view(), name='apagar'),
     path('lixeira/', views.LixeiraView.as_view(), name='lixeira'),
 ]

@@ -32,6 +32,19 @@
              data-bs-toggle="modal" data-bs-target="#modal-acao">
             <i class="fa-solid fa-trash-can me-2"></i>Excluir
           </a>
+        {% else %}
+          <form method="post" action="{% url 'ausencias:restaurar' ausencia.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'ausencias:detalhe' ausencia.pk %}">
+            <button type="submit" class="btn btn-success">
+              <i class="fa-solid fa-trash-arrow-up me-2"></i>Restaurar
+            </button>
+          </form>
+          {% if user.is_superuser %}
+          <a href="{% url 'ausencias:apagar' ausencia.pk %}" class="btn btn-outline-danger">
+            <i class="fa-solid fa-xmark me-2"></i>Apagar de vez
+          </a>
+          {% endif %}
         {% endif %}
       </div>
       {% endif %}

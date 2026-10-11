@@ -252,3 +252,32 @@ class FiltroAusenciasForm(TablerFormMixin, forms.Form):
             'de': dados.get('de'),
             'ate': dados.get('ate'),
         }
+
+
+class FiltroLixeiraForm(TablerFormMixin, forms.Form):
+    nome = forms.CharField(
+        label='Nome', required=False, max_length=150,
+        widget=forms.TextInput(attrs={'placeholder': 'Buscar por nome', 'type': 'search'}),
+    )
+
+    def filtros(self):
+        self.is_valid()
+        return {'nome': getattr(self, 'cleaned_data', {}).get('nome') or ''}
+
+
+class ConfirmarApagarForm(TablerFormMixin, forms.Form):
+    """Confirmação reforçada: digitar o código da ausência."""
+    confirmacao = forms.CharField(
+        label='Digite o código da ausência para confirmar', max_length=32,
+        widget=forms.TextInput(attrs={'autocomplete': 'off', 'autofocus': True}),
+    )
+
+    def __init__(self, *args, ausencia, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ausencia = ausencia
+
+    def clean_confirmacao(self):
+        valor = self.cleaned_data['confirmacao'].strip()
+        if valor.upper() != self.ausencia.codigo.upper():
+            raise forms.ValidationError('O código digitado não confere.')
+        return valor

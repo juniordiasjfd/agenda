@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}Lixeira — Agenda{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="page-pretitle"><a href="{% url 'ausencias:lista' %}">Ausências</a></div>
+    <h2 class="page-title">Lixeira</h2>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-body border-bottom">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label" for="{{ filtro.nome.id_for_label }}">{{ filtro.nome.label }}</label>
+        {{ filtro.nome }}
+      </div>
+      <div class="col-md-3 d-flex gap-2">
+        <button type="submit" class="btn btn-primary">
+          <i class="fa-solid fa-magnifying-glass me-2"></i>Filtrar
+        </button>
+        <a href="{% url 'ausencias:lixeira' %}" class="btn btn-link">Limpar</a>
+      </div>
+    </form>
+  </div>
+
+  {% if ausencias %}
+  <div class="table-responsive">
+    <table class="table table-vcenter card-table">
+      <thead>
+        <tr>
+          <th>Colaborador</th>
+          <th>Tipo</th>
+          <th>Períodos</th>
+          <th>Excluída em</th>
+          <th>Excluída por</th>
+          <th class="w-1"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ausencia in ausencias %}
+        <tr id="ausencia-{{ ausencia.pk }}">
+          <td>
+            <a href="{% url 'ausencias:detalhe' ausencia.pk %}">{{ ausencia.colaborador.nome }}</a>
+            <div class="text-secondary small font-monospace">{{ ausencia.codigo }}</div>
+          </td>
+          <td class="text-nowrap">
+            <span class="legenda-cor" style="background-color: {{ ausencia.tipo.cor }}"></span>{{ ausencia.tipo.nome }}
+          </td>
+          <td class="text-nowrap small">
+            {% for periodo in ausencia.periodos.all %}
+              <div>{{ periodo.data_inicio|date:"d/m/Y" }} a {{ periodo.data_fim|date:"d/m/Y" }} <span class="text-secondary">({{ periodo.situacao.nome }})</span></div>
+            {% endfor %}
+          </td>
+          <td class="text-nowrap">{{ ausencia.excluido_em|date:"d/m/Y H:i" }}</td>
+          <td class="text-secondary">{{ ausencia.excluido_por|default:"—" }}</td>
+          <td class="text-nowrap">
+            {% if user.eh_gestor %}
+            <form method="post" action="{% url 'ausencias:restaurar' ausencia.pk %}" class="d-inline">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ voltar }}">
+              <button type="submit" class="btn btn-sm btn-outline-success" title="Restaurar">
+                <i class="fa-solid fa-trash-arrow-up me-1"></i>Restaurar
+              </button>
+            </form>
+            {% endif %}
+            {% if user.is_superuser %}
+            <a href="{% url 'ausencias:apagar' ausencia.pk %}" class="btn btn-sm btn-outline-danger" title="Apagar de vez">
+              <i class="fa-solid fa-xmark"></i>
+            </a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body text-center text-secondary py-5">
+    <i class="fa-solid fa-trash-can fs-1 mb-3 d-block"></i>
+    A lixeira está vazia.
+  </div>
+  {% endif %}
+
+  <div class="card-footer d-flex align-items-center">
+    <p class="m-0 text-secondary">{{ paginator.count }} na lixeira</p>
+    {% if is_paginated %}
+    <ul class="pagination m-0 ms-auto">
+      <li class="page-item{% if not page_obj.has_previous %} disabled{% endif %}">
+        <a class="page-link" href="{% if page_obj.has_previous %}{% querystring page=page_obj.previous_page_number %}{% else %}#{% endif %}">
+          <i class="fa-solid fa-chevron-left"></i> anterior
+        </a>
+      </li>
+      <li class="page-item disabled">
+        <span class="page-link">página {{ page_obj.number }} de {{ paginator.num_pages }}</span>
+      </li>
+      <li class="page-item{% if not page_obj.has_next %} disabled{% endif %}">
+        <a class="page-link" href="{% if page_obj.has_next %}{% querystring page=page_obj.next_page_number %}{% else %}#{% endif %}">
+          próxima <i class="fa-solid fa-chevron-right"></i>
+        </a>
+      </li>
+    </ul>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Apagar ausência — Agenda{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="page-pretitle"><a href="{% url 'ausencias:lixeira' %}">Lixeira</a></div>
+    <h2 class="page-title">Apagar ausência de vez</h2>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-7 col-lg-6">
+    <div class="card">
+      <div class="card-status-top bg-danger"></div>
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="card-body">
+          <div class="alert alert-danger" role="alert">
+            <i class="fa-solid fa-triangle-exclamation me-2"></i>
+            <strong>Esta ação não pode ser desfeita.</strong> A ausência e todos os seus períodos serão apagados do banco.
+          </div>
+          <p>
+            {{ ausencia.titulo }} — código <strong class="font-monospace">{{ ausencia.codigo }}</strong><br>
+            {% for periodo in ausencia.periodos.all %}
+              <span class="text-secondary">{{ periodo.data_inicio|date:"d/m/Y" }} a {{ periodo.data_fim|date:"d/m/Y" }}</span>{% if not forloop.last %}, {% endif %}
+            {% endfor %}
+          </p>
+          {% include "includes/_campo.html" with campo=form.confirmacao %}
+        </div>
+        <div class="card-footer d-flex">
+          <a href="{% url 'ausencias:detalhe' ausencia.pk %}" class="btn btn-link">Cancelar</a>
+          <button type="submit" class="btn btn-danger ms-auto">
+            <i class="fa-solid fa-xmark me-2"></i>Apagar de vez
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
