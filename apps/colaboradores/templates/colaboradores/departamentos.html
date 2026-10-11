@@ -37,7 +37,7 @@
         <tr>
           <td>{{ departamento.nome }}</td>
           <td class="text-secondary">
-            {{ departamento.total_colaboradores }}
+            <a href="{% url 'colaboradores:colaboradores' %}?departamento={{ departamento.pk }}&amp;situacao=todos">{{ departamento.total_colaboradores }}</a>
           </td>
           <td class="text-nowrap">
             <a href="{% url 'colaboradores:departamento_editar' departamento.pk %}" class="btn btn-sm" title="Editar">

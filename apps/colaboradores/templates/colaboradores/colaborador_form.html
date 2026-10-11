@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Editar colaborador{% else %}Novo colaborador{% endif %} — Agenda{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="page-pretitle">
+      <a href="{% url 'colaboradores:colaboradores' %}">Colaboradores</a>
+    </div>
+    <h2 class="page-title">{% if object %}Editar {{ object.nome }}{% else %}Novo colaborador{% endif %}</h2>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-6">
+    <div class="card">
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="card-body">
+          {% for erro in form.non_field_errors %}
+            <div class="alert alert-danger" role="alert">{{ erro }}</div>
+          {% endfor %}
+          {% include "includes/_campo.html" with campo=form.nome %}
+          {% include "includes/_campo.html" with campo=form.departamento %}
+          {% include "includes/_campo.html" with campo=form.usuario %}
+          <div class="mb-3">
+            <label class="form-check">
+              {{ form.ativo }}
+              <span class="form-check-label">{{ form.ativo.label }}</span>
+            </label>
+            <small class="form-hint">{{ form.ativo.help_text }}</small>
+          </div>
+        </div>
+        <div class="card-footer d-flex">
+          <a href="{% url 'colaboradores:colaboradores' %}" class="btn btn-link">Cancelar</a>
+          <button type="submit" class="btn btn-primary ms-auto">
+            <i class="fa-solid fa-floppy-disk me-2"></i>Salvar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

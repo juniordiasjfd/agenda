@@ -1,0 +1,40 @@
+{# Uma linha da lista de colaboradores. Contexto: colaborador. #}
+<tr id="colaborador-{{ colaborador.pk }}">
+  <td>
+    <a href="{% url 'colaboradores:colaborador_editar' colaborador.pk %}">{{ colaborador.nome }}</a>
+  </td>
+  <td>
+    {% if colaborador.departamento %}{{ colaborador.departamento }}{% else %}<span class="text-secondary">Sem departamento</span>{% endif %}
+  </td>
+  <td>
+    {% if colaborador.ativo %}
+      <span class="badge bg-green-lt">Ativo</span>
+    {% else %}
+      <span class="badge bg-secondary-lt">Inativo</span>
+    {% endif %}
+  </td>
+  <td class="text-secondary">{{ colaborador.usuario.email|default:"—" }}</td>
+  <td class="text-nowrap">
+    <a href="{% url 'colaboradores:colaborador_editar' colaborador.pk %}" class="btn btn-sm" title="Editar">
+      <i class="fa-solid fa-pen"></i>
+    </a>
+    {% if colaborador.ativo %}
+    <form method="post" action="{% url 'colaboradores:colaborador_desativar' colaborador.pk %}" class="d-inline"
+          x-data @submit="if (!confirm('Desativar {{ colaborador.nome|escapejs }}? Ele deixa de aparecer no formulário e no painel; o histórico permanece.')) $event.preventDefault()">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <button type="submit" class="btn btn-sm btn-outline-secondary" title="Desativar">
+        <i class="fa-solid fa-user-slash"></i>
+      </button>
+    </form>
+    {% else %}
+    <form method="post" action="{% url 'colaboradores:colaborador_ativar' colaborador.pk %}" class="d-inline">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <button type="submit" class="btn btn-sm btn-outline-success" title="Ativar">
+        <i class="fa-solid fa-user-check"></i>
+      </button>
+    </form>
+    {% endif %}
+  </td>
+</tr>
