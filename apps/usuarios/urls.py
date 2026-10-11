@@ -1,22 +1,19 @@
 from django.contrib.auth import views as auth_views
 from django.urls import path, reverse_lazy
 
-from apps.usuarios.forms import AlterarSenhaForm, DefinirSenhaForm, LoginForm, RedefinirSenhaForm
+from apps.usuarios import views
+from apps.usuarios.forms import AlterarSenhaForm, DefinirSenhaForm, RedefinirSenhaForm
 
 app_name = 'usuarios'
 
 urlpatterns = [
-    path(
-        'entrar/',
-        auth_views.LoginView.as_view(
-            form_class=LoginForm,
-            template_name='usuarios/login.html',
-            redirect_authenticated_user=True,
-        ),
-        name='login',
-    ),
+    path('entrar/', views.LoginView.as_view(), name='login'),
     # LogoutView do Django 5 só aceita POST.
     path('sair/', auth_views.LogoutView.as_view(), name='logout'),
+
+    # Autocadastro (público).
+    path('cadastro/', views.CadastroView.as_view(), name='cadastro'),
+    path('cadastro/recebido/', views.CadastroRecebidoView.as_view(), name='cadastro_recebido'),
 
     # Redefinição de senha (esqueci minha senha) — usuário deslogado.
     path(

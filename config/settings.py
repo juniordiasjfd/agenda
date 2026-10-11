@@ -182,6 +182,9 @@ DATABASES = {
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        # O padrão compara com username/first_name/last_name, que este User
+        # não tem.
+        'OPTIONS': {'user_attributes': ('email', 'nome')},
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',

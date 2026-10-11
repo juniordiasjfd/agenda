@@ -35,3 +35,11 @@
   </div>
 </form>
 {% endblock %}
+
+{% block below_card %}
+{% if autocadastro_habilitado %}
+<div class="text-center text-secondary mt-3">
+  Ainda não tem conta? <a href="{% url 'usuarios:cadastro' %}">Criar conta</a>
+</div>
+{% endif %}
+{% endblock %}

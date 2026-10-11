@@ -1,0 +1,20 @@
+{% extends "base_public.html" %}
+
+{% block title %}Cadastro recebido — Agenda{% endblock %}
+
+{% block content %}
+<div class="text-center">
+  <div class="mb-3 text-success fs-1"><i class="fa-solid fa-circle-check"></i></div>
+  <h2 class="h2 mb-3">Cadastro recebido</h2>
+  <p class="text-secondary mb-0">
+    Seu cadastro aguarda a aprovação do administrador. Você receberá um e-mail
+    quando o acesso for liberado.
+  </p>
+</div>
+{% endblock %}
+
+{% block below_card %}
+<div class="text-center text-secondary mt-3">
+  <a href="{% url 'usuarios:login' %}">Voltar para o login</a>
+</div>
+{% endblock %}

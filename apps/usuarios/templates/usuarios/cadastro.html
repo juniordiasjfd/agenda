@@ -1,0 +1,36 @@
+{% extends "base_public.html" %}
+
+{% block title %}Criar conta — Agenda{% endblock %}
+
+{% block content %}
+<h2 class="h2 text-center mb-3">Criar conta</h2>
+<p class="text-secondary mb-4">
+  Preencha seus dados. O acesso é liberado depois que o administrador aprovar
+  o cadastro.
+</p>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  {% for erro in form.non_field_errors %}
+    <div class="alert alert-danger" role="alert">{{ erro }}</div>
+  {% endfor %}
+
+  {% include "includes/_campo.html" with campo=form.nome %}
+  {% include "includes/_campo.html" with campo=form.email %}
+  {% include "includes/_campo.html" with campo=form.password1 %}
+  {% include "includes/_campo.html" with campo=form.password2 %}
+
+  <div class="form-footer">
+    <button type="submit" class="btn btn-primary w-100">
+      <i class="fa-solid fa-user-plus me-2"></i>Criar conta
+    </button>
+  </div>
+</form>
+{% endblock %}
+
+{% block below_card %}
+<div class="text-center text-secondary mt-3">
+  Já tem conta? <a href="{% url 'usuarios:login' %}">Entrar</a>
+</div>
+{% endblock %}
