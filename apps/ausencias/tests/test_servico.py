@@ -321,9 +321,13 @@ def test_atualizar_com_versao_atual_grava(ausencia, colaborador, ferias, admin):
     assert ausencia.observacoes == 'Nova'
 
 
-def test_atualizar_com_versao_desatualizada_recusa_sem_gravar(ausencia, colaborador, ferias, admin, gestor):
+def test_atualizar_com_versao_desatualizada_recusa_sem_gravar(ausencia, colaborador, ferias, admin):
     versao_aberta = ausencia.atualizado_em
-    atualizar_ausencia(ausencia, colaborador, ferias, datas_como_informadas(ausencia), 'Do outro', gestor)
+    # Outra pessoa salvou depois (atualizado_em explícito: no Windows o
+    # relógio pode repetir o mesmo instante em gravações seguidas).
+    Ausencia.todos.filter(pk=ausencia.pk).update(
+        observacoes='Do outro', atualizado_em=versao_aberta + timedelta(milliseconds=1),
+    )
 
     with pytest.raises(ausencias_service.AusenciaAlterada) as erro:
         atualizar_ausencia(
@@ -334,10 +338,6 @@ def test_atualizar_com_versao_desatualizada_recusa_sem_gravar(ausencia, colabora
     ausencia.refresh_from_db()
     assert ausencia.observacoes == 'Do outro'
     assert ausencia.periodos.count() == 2
-
-
-def datas_como_informadas(ausencia):
-    return [PeriodoInformado(x.data_inicio, x.data_fim, x.situacao, x.pk) for x in ausencia.periodos.all()]
 
 
 # Inativos na edição -------------------------------------------------------

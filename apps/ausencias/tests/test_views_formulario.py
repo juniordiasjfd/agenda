@@ -1,6 +1,8 @@
 """Tela de registro/edição: formset, mapeamento dos erros do serviço e
 opções de colaborador/tipo/situação."""
 
+from datetime import timedelta
+
 import pytest
 from django.urls import reverse
 from django.utils import timezone
@@ -391,14 +393,13 @@ def test_editar_inexistente_404(gestor_client):
 # ---------------------------------------------------------------------------
 # Trava otimista
 # ---------------------------------------------------------------------------
-def test_editar_com_versao_desatualizada_recusa_e_mantem_o_digitado(gestor_client, ausencia, admin):
+def test_editar_com_versao_desatualizada_recusa_e_mantem_o_digitado(gestor_client, ausencia):
     versao_aberta = ausencia.atualizado_em.isoformat()
     primeiro, segundo = ausencia.periodos.all()
-    # Outra pessoa salva no meio tempo.
-    ausencias_service.atualizar_ausencia(
-        ausencia, ausencia.colaborador, ausencia.tipo,
-        [ausencias_service.PeriodoInformado(p.data_inicio, p.data_fim, p.situacao, p.pk) for p in (primeiro, segundo)],
-        'Do outro', admin,
+    # Outra pessoa salva no meio tempo (instante explícito: no Windows o
+    # relógio pode repetir o mesmo valor em gravações seguidas).
+    Ausencia.todos.filter(pk=ausencia.pk).update(
+        observacoes='Do outro', atualizado_em=ausencia.atualizado_em + timedelta(milliseconds=1),
     )
 
     response = gestor_client.post(url_editar(ausencia), dados_edicao(
@@ -430,14 +431,16 @@ def test_editar_sem_versao_recusado(gestor_client, ausencia):
     assert ausencia.periodos.count() == 2
 
 
-def test_alteracao_entre_validacao_e_gravacao_recusada(gestor_client, monkeypatch, ausencia, admin):
+def test_alteracao_entre_validacao_e_gravacao_recusada(gestor_client, monkeypatch, ausencia):
     """A tela validou com a versão atual, mas outra gravação entrou antes da
     trava: o serviço recusa e a mensagem é a mesma."""
     clean_original = BasePeriodoFormSet.clean
 
     def clean_e_outro_salva(self):
         clean_original(self)
-        type(ausencia).todos.filter(pk=ausencia.pk).update(observacoes='Do outro', atualizado_em=timezone.now())
+        Ausencia.todos.filter(pk=ausencia.pk).update(
+            observacoes='Do outro', atualizado_em=ausencia.atualizado_em + timedelta(milliseconds=1),
+        )
 
     monkeypatch.setattr(BasePeriodoFormSet, 'clean', clean_e_outro_salva)
     primeiro, segundo = ausencia.periodos.all()
