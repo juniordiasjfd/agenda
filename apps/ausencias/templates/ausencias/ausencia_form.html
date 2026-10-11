@@ -68,8 +68,10 @@
           </button>
           <span class="text-secondary small ms-2" x-cloak x-show="ativas >= maximo">Limite de {{ max_periodos }} períodos.</span>
 
-          {# Linha do ano + avisos de conflito por linha, atualizados a cada mudança (só aviso). No
-             carregamento vem só a linha do ano: os erros do servidor, se houver, já estão nas linhas. #}
+          {% comment %}
+            Linha do ano + avisos de conflito por linha, atualizados a cada mudança (só aviso). No
+            carregamento vem só a linha do ano: os erros do servidor, se houver, já estão nas linhas.
+          {% endcomment %}
           {% if ausencia %}{% url 'ausencias:prechecagem_edicao' ausencia.pk as url_prechecagem %}{% else %}{% url 'ausencias:prechecagem' as url_prechecagem %}{% endif %}
           <div class="mt-4" id="linha-do-ano"
                hx-post="{{ url_prechecagem }}" hx-include="#form-ausencia" hx-target="this" hx-swap="innerHTML"
