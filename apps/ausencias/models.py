@@ -4,7 +4,8 @@ from django.db import models
 from django.db.models import Q
 from django.db.models.functions import Lower
 
-from apps.core.models import AuditoriaBase
+from apps.colaboradores.models import Colaborador
+from apps.core.models import AuditoriaBase, SoftDeleteMixin
 from apps.core.utils import colapsar_espacos
 
 REGEX_COR = r'^#[0-9A-Fa-f]{6}$'
@@ -117,3 +118,93 @@ class SituacaoAusencia(NomeUnicoMixin, AuditoriaBase):
     def save(self, *args, **kwargs):
         self.nome = colapsar_espacos(self.nome)
         super().save(*args, **kwargs)
+
+
+class Ausencia(SoftDeleteMixin, AuditoriaBase):
+    """Cabeçalho de um envio: um colaborador, um tipo e um ou mais períodos.
+
+    ``codigo`` é o SolicitacaoID do CSV: gerado por
+    ``ausencias_service.gerar_codigo`` (8 caracteres) ou, na importação, o ID
+    legado (até 32). Exclusão lógica pelo ``SoftDeleteMixin``: ``objects``
+    oculta as excluídas, ``todos`` inclui. Gravar sempre pelo serviço, que
+    valida a sobreposição.
+    """
+    colaborador = models.ForeignKey(
+        Colaborador,
+        on_delete=models.PROTECT,
+        related_name='ausencias',
+        verbose_name='Colaborador',
+    )
+    tipo = models.ForeignKey(
+        TipoAusencia,
+        on_delete=models.PROTECT,
+        related_name='ausencias',
+        verbose_name='Tipo',
+    )
+    observacoes = models.TextField(blank=True, verbose_name='Observações')
+    codigo = models.CharField(
+        max_length=32,
+        unique=True,
+        verbose_name='Código',
+        error_messages={'unique': 'Já existe uma ausência com este código.'},
+    )
+
+    class Meta:
+        verbose_name = 'ausência'
+        verbose_name_plural = 'ausências'
+        ordering = ['-criado_em']
+        # O índice em colaborador é o da própria FK (db_index).
+
+    def __str__(self):
+        return f'{self.codigo} — {self.titulo}'
+
+    @property
+    def titulo(self):
+        """"Colaborador - Tipo" (coluna Titulo do CSV)."""
+        return f'{self.colaborador} - {self.tipo}'
+
+
+class PeriodoAusencia(AuditoriaBase):
+    """Intervalo de datas de uma ausência, com fim INCLUSIVO (10 a 10 = 1 dia).
+
+    A sobreposição com outros períodos do mesmo colaborador é verificada no
+    serviço (``ausencias_service.validar_periodos``), não no banco.
+    """
+    ausencia = models.ForeignKey(
+        Ausencia,
+        on_delete=models.CASCADE,
+        related_name='periodos',
+        verbose_name='Ausência',
+    )
+    data_inicio = models.DateField(verbose_name='Início')
+    data_fim = models.DateField(verbose_name='Fim')
+    situacao = models.ForeignKey(
+        SituacaoAusencia,
+        on_delete=models.PROTECT,
+        related_name='periodos',
+        verbose_name='Situação',
+    )
+
+    class Meta:
+        verbose_name = 'período'
+        verbose_name_plural = 'períodos'
+        ordering = ['data_inicio', 'data_fim', 'pk']
+        # O índice em ausencia é o da própria FK (db_index).
+        indexes = [
+            models.Index(fields=['data_inicio', 'data_fim'], name='ausencias_periodo_datas_idx'),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(data_fim__gte=models.F('data_inicio')),
+                name='ausencias_periodo_fim_apos_inicio',
+                violation_error_message='A data de fim deve ser igual ou posterior à de início.',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.data_inicio:%d/%m/%Y} a {self.data_fim:%d/%m/%Y}'
+
+    @property
+    def dias(self):
+        """Dias corridos, contando início e fim."""
+        return (self.data_fim - self.data_inicio).days + 1

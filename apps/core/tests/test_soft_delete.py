@@ -7,8 +7,8 @@ def test_models_base_sao_abstratos():
 
 
 def test_manager_padrao_oculta_excluidos():
-    """O comportamento com dados é testado na etapa 5, com a Ausencia; aqui
-    só a configuração dos managers."""
+    """Só a configuração dos managers; o comportamento com dados está em
+    apps/ausencias/tests/test_soft_delete.py."""
     managers = {m.name: m for m in SoftDeleteMixin._meta.managers}
 
     assert isinstance(managers['objects'], NaoExcluidosManager)

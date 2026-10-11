@@ -1,9 +1,11 @@
 from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
+from django.db.models import Count
+from django.forms.models import BaseInlineFormSet
 
 from apps.ausencias import ausencias_service
-from apps.ausencias.models import SituacaoAusencia, TipoAusencia
+from apps.ausencias.models import Ausencia, PeriodoAusencia, SituacaoAusencia, TipoAusencia
 from apps.colaboradores.admin import AuditoriaAdminMixin
 
 
@@ -75,3 +77,88 @@ class SituacaoAusenciaAdmin(AuditoriaAdminMixin, admin.ModelAdmin):
             self.message_user(request, ' '.join(erro.messages), messages.ERROR)
             return
         self.message_user(request, f'"{situacao.nome}" agora é a situação padrão.')
+
+
+class PeriodoInlineFormSet(BaseInlineFormSet):
+    pass
+
+
+class PeriodoAusenciaInline(admin.TabularInline):
+    model = PeriodoAusencia
+    extra = 0
+    min_num = 1
+    max_num = ausencias_service.MAX_PERIODOS
+    fields = ('data_inicio', 'data_fim', 'situacao', 'dias')
+    readonly_fields = ('dias',)
+    formset = PeriodoInlineFormSet
+
+    @admin.display(description='Dias')
+    def dias(self, obj):
+        return obj.dias if obj.pk else '—'
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == 'situacao':
+            kwargs['initial'] = ausencias_service.situacao_padrao()
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
+class ExcluidaFilter(admin.SimpleListFilter):
+    title = 'exclusão'
+    parameter_name = 'excluida'
+
+    def lookups(self, request, model_admin):
+        return [('nao', 'Ativas'), ('sim', 'Na lixeira')]
+
+    def queryset(self, request, queryset):
+        if self.value() == 'nao':
+            return queryset.filter(excluido_em__isnull=True)
+        if self.value() == 'sim':
+            return queryset.filter(excluido_em__isnull=False)
+        return queryset
+
+
+@admin.register(Ausencia)
+class AusenciaAdmin(AuditoriaAdminMixin, admin.ModelAdmin):
+    list_display = ('codigo', 'colaborador', 'tipo', 'total_periodos', 'excluido_em', 'atualizado_em')
+    list_filter = (ExcluidaFilter, 'tipo', 'colaborador__departamento')
+    search_fields = ('codigo', 'colaborador__nome', 'colaborador__nome_normalizado', 'observacoes')
+    list_select_related = ('colaborador', 'tipo')
+    autocomplete_fields = ('colaborador',)
+    inlines = [PeriodoAusenciaInline]
+    readonly_fields = (
+        'codigo', 'excluido_em', 'excluido_por',
+        'criado_em', 'criado_por', 'atualizado_em', 'atualizado_por',
+    )
+    fields = (
+        'codigo', 'colaborador', 'tipo', 'observacoes', 'excluido_em', 'excluido_por',
+        'criado_em', 'criado_por', 'atualizado_em', 'atualizado_por',
+    )
+
+    def get_queryset(self, request):
+        # Inclui as excluídas (na lixeira), para consulta e auditoria.
+        return Ausencia.todos.select_related('colaborador', 'tipo').annotate(_total_periodos=Count('periodos'))
+
+    @admin.display(description='Períodos', ordering='_total_periodos')
+    def total_periodos(self, obj):
+        return obj._total_periodos
+
+    def has_delete_permission(self, request, obj=None):
+        # Exclusão é lógica, pelo serviço (lixeira na etapa 5); o admin do
+        # Django não apaga ausências, nem uma a uma nem em massa.
+        return False
+
+    def save_model(self, request, obj, form, change):
+        if not obj.codigo:
+            obj.codigo = ausencias_service.gerar_codigo()
+        super().save_model(request, obj, form, change)
+
+    def save_formset(self, request, form, formset, change):
+        periodos = formset.save(commit=False)
+        for periodo in formset.deleted_objects:
+            periodo.delete()
+        for periodo in periodos:
+            if periodo.pk is None:
+                periodo.criado_por = request.user
+            periodo.atualizado_por = request.user
+            periodo.save()
+        formset.save_m2m()

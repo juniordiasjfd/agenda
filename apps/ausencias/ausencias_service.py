@@ -5,13 +5,38 @@ entrada/saída; toda decisão fica aqui.
 """
 
 import logging
+import secrets
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from apps.ausencias.models import SituacaoAusencia
+from apps.ausencias.models import Ausencia, SituacaoAusencia
 
 logger = logging.getLogger(__name__)
+
+MAX_PERIODOS = 12
+
+
+# ---------------------------------------------------------------------------
+# Código (SolicitacaoID do CSV)
+# ---------------------------------------------------------------------------
+# Maiúsculas e dígitos sem os ambíguos 0, O, 1, I e L (31 símbolos).
+ALFABETO_CODIGO = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+TAMANHO_CODIGO = 8
+TENTATIVAS_CODIGO = 10
+
+
+def gerar_codigo():
+    """Código novo de 8 caracteres (``secrets``), ainda não usado por
+    nenhuma ausência, inclusive excluídas. Com 31⁸ combinações a colisão é
+    improvável; mesmo assim tenta até ``TENTATIVAS_CODIGO`` vezes e depois
+    levanta ``RuntimeError``. A constraint ``unique`` segue como trava final.
+    """
+    for _ in range(TENTATIVAS_CODIGO):
+        codigo = ''.join(secrets.choice(ALFABETO_CODIGO) for _ in range(TAMANHO_CODIGO))
+        if not Ausencia.todos.filter(codigo=codigo).exists():
+            return codigo
+    raise RuntimeError(f'Não foi possível gerar um código de ausência único em {TENTATIVAS_CODIGO} tentativas.')
 
 
 # ---------------------------------------------------------------------------
