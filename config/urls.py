@@ -9,5 +9,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('apps.usuarios.urls')),
     path('', include('apps.colaboradores.urls')),
+    path('ausencias/', include('apps.ausencias.urls')),
     path('', include('apps.core.urls')),
 ]

@@ -31,6 +31,27 @@
             </a>
           </li>
 
+          <li class="nav-item{% if active_nav == 'ausencias' %} active{% endif %}">
+            <a class="nav-link" href="{% url 'ausencias:lista' %}">
+              <span class="nav-link-icon"><i class="fa-solid fa-list-ul"></i></span>
+              <span class="nav-link-title">Ausências</span>
+            </a>
+          </li>
+          {% if user.eh_gestor %}
+          <li class="nav-item{% if active_nav == 'registrar' %} active{% endif %}">
+            <a class="nav-link" href="{% url 'ausencias:registrar' %}">
+              <span class="nav-link-icon"><i class="fa-solid fa-calendar-plus"></i></span>
+              <span class="nav-link-title">Registrar</span>
+            </a>
+          </li>
+          {% endif %}
+          <li class="nav-item{% if active_nav == 'lixeira' %} active{% endif %}">
+            <a class="nav-link" href="{% url 'ausencias:lixeira' %}">
+              <span class="nav-link-icon"><i class="fa-solid fa-trash-can"></i></span>
+              <span class="nav-link-title">Lixeira</span>
+            </a>
+          </li>
+
           {% if user.is_superuser %}
           {# ---- Só administrador ---- #}
           {% if active_nav == 'pendentes' or active_nav == 'convites' or active_nav == 'departamentos' or active_nav == 'colaboradores' %}{% firstof 'show' as menu_admin_aberto %}{% endif %}

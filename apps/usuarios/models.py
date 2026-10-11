@@ -131,6 +131,14 @@ class User(AbstractBaseUser, PermissionsMixin):
     def aguardando_aprovacao(self):
         return not self.is_active and self.aprovado_em is None
 
+    @property
+    def eh_gestor(self):
+        """Gestor ou administrador: cria, edita, exclui e restaura ausências."""
+        # Import tardio: core.permissions carrega auth.mixins, que precisa
+        # do AUTH_USER_MODEL já registrado.
+        from apps.core.permissions import eh_gestor
+        return eh_gestor(self)
+
 
 # ---------------------------------------------------------------------------
 # Autocadastro

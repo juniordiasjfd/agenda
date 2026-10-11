@@ -14,11 +14,10 @@ from django.utils import timezone
 
 from apps.colaboradores.models import Colaborador
 from apps.core.email_service import enviar_email
+from apps.core.permissions import NOME_GRUPO_GESTOR
 from apps.usuarios.models import Convite, DominioAutocadastro, User
 
 logger = logging.getLogger(__name__)
-
-NOME_GRUPO_GESTOR = 'Gestor'
 
 
 # ---------------------------------------------------------------------------
