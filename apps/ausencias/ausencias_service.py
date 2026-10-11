@@ -60,6 +60,16 @@ class ErroValidacaoAusencia(Exception):
         return resultado
 
 
+MENSAGEM_ALTERADA_POR_OUTRO = 'Esta ausência foi alterada por outra pessoa. Recarregue e refaça a edição.'
+
+
+class AusenciaAlterada(ErroValidacaoAusencia):
+    """A ausência mudou desde que a edição começou (trava otimista)."""
+
+    def __init__(self):
+        super().__init__([MENSAGEM_ALTERADA_POR_OUTRO])
+
+
 class _Erros:
     """Acumula erros para levantar um único ``ErroValidacaoAusencia``."""
 
@@ -475,8 +485,12 @@ def criar_ausencia(colaborador, tipo, periodos, observacoes, usuario):
     return ausencia
 
 
-def atualizar_ausencia(ausencia, colaborador, tipo, periodos, observacoes, usuario):
+def atualizar_ausencia(ausencia, colaborador, tipo, periodos, observacoes, usuario, versao=None):
     """Substitui o envio inteiro: cabeçalho e períodos.
+
+    ``versao``: o ``atualizado_em`` da ausência quando a edição começou
+    (trava otimista). Se ela mudou desde então, levanta ``AusenciaAlterada``
+    sem gravar nada. ``None`` dispensa a verificação.
 
     Reconciliação pelos ``PeriodoInformado.id``: com id, o período existente
     é alterado (e só ganha ``atualizado_por`` se algo mudou); sem id, é
@@ -489,6 +503,8 @@ def atualizar_ausencia(ausencia, colaborador, tipo, periodos, observacoes, usuar
         gravada = _travar_ausencia(ausencia)
         if gravada.esta_excluido:
             raise ErroValidacaoAusencia(['Este registro está na lixeira: restaure-o antes de editar.'])
+        if versao is not None and gravada.atualizado_em != versao:
+            raise AusenciaAlterada()
         pk_colaborador = colaborador.pk if colaborador is not None else None
         colaborador = _travar_colaboradores(gravada.colaborador_id, pk_colaborador).get(pk_colaborador)
         tipo = _recarregar_tipo(tipo)

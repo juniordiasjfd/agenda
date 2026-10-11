@@ -311,6 +311,35 @@ def test_atualizar_ausencia_na_lixeira_recusado(ausencia, colaborador, ferias, a
     assert erro.value.erros_gerais == ['Este registro está na lixeira: restaure-o antes de editar.']
 
 
+# Trava otimista ------------------------------------------------------------
+def test_atualizar_com_versao_atual_grava(ausencia, colaborador, ferias, admin):
+    atualizar_ausencia(
+        ausencia, colaborador, ferias, [p('02/03/2026', '06/03/2026')], 'Nova', admin, versao=ausencia.atualizado_em,
+    )
+
+    ausencia.refresh_from_db()
+    assert ausencia.observacoes == 'Nova'
+
+
+def test_atualizar_com_versao_desatualizada_recusa_sem_gravar(ausencia, colaborador, ferias, admin, gestor):
+    versao_aberta = ausencia.atualizado_em
+    atualizar_ausencia(ausencia, colaborador, ferias, datas_como_informadas(ausencia), 'Do outro', gestor)
+
+    with pytest.raises(ausencias_service.AusenciaAlterada) as erro:
+        atualizar_ausencia(
+            ausencia, colaborador, ferias, [p('02/03/2026', '06/03/2026')], 'Minha', admin, versao=versao_aberta,
+        )
+    assert erro.value.erros_gerais == [ausencias_service.MENSAGEM_ALTERADA_POR_OUTRO]
+    assert isinstance(erro.value, ErroValidacaoAusencia)
+    ausencia.refresh_from_db()
+    assert ausencia.observacoes == 'Do outro'
+    assert ausencia.periodos.count() == 2
+
+
+def datas_como_informadas(ausencia):
+    return [PeriodoInformado(x.data_inicio, x.data_fim, x.situacao, x.pk) for x in ausencia.periodos.all()]
+
+
 # Inativos na edição -------------------------------------------------------
 def test_editar_ausencia_de_colaborador_inativo_sem_trocar_e_aceito(ausencia, colaborador, ferias, admin):
     colaborador.ativo = False
