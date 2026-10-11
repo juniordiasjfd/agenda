@@ -46,3 +46,66 @@
 .linha-ano-legenda i.novo { background: var(--tblr-primary); }
 .linha-ano-legenda i.conflito { background: var(--tblr-danger); }
 .linha-ano-legenda i.nao-conta { background: var(--tblr-gray-300); }
+
+/* Tom Select (tema bootstrap5) sobre o Tabler.
+ * O tema usa variáveis --bs-* (--bs-body-bg, --bs-tertiary-bg,
+ * --bs-border-color...) que o Tabler não define (ele usa --tblr-*): sem este
+ * bloco a lista de opções fica sem fundo e as cores fixas (#343a40) somem no
+ * tema escuro. Nunca editar o CSS do CDN: os ajustes ficam aqui. */
+.ts-wrapper .ts-control,
+.ts-wrapper.single.input-active .ts-control,
+.ts-wrapper.full .ts-control {
+  background-color: var(--tblr-bg-forms, var(--tblr-bg-surface));
+  color: var(--tblr-body-color);
+}
+.ts-wrapper .ts-control,
+.ts-wrapper .ts-control input {
+  color: var(--tblr-body-color);
+}
+.ts-wrapper .ts-control input::placeholder {
+  color: var(--tblr-secondary);
+}
+.ts-wrapper.focus .ts-control {
+  border-color: var(--tblr-primary);
+  box-shadow: 0 0 0 .25rem rgba(var(--tblr-primary-rgb), .25);
+}
+.ts-dropdown,
+.ts-dropdown.form-control,
+.ts-dropdown.form-select {
+  /* Acima de cards, menus e do modal do Bootstrap (1055). */
+  z-index: 1060;
+  background: var(--tblr-bg-surface);
+  color: var(--tblr-body-color);
+  border: var(--tblr-border-width) solid var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius);
+  box-shadow: var(--tblr-box-shadow-dropdown);
+}
+.ts-dropdown .ts-dropdown-content {
+  max-height: 18rem;
+}
+.ts-dropdown .optgroup-header {
+  background: var(--tblr-bg-surface);
+  color: var(--tblr-secondary);
+}
+.ts-dropdown .option,
+.ts-dropdown .no-results {
+  color: var(--tblr-body-color);
+}
+.ts-dropdown .option:hover,
+.ts-dropdown .active {
+  /* --tblr-active-bg (4% no claro) é fraco demais para o realce do teclado. */
+  background-color: rgba(var(--tblr-primary-rgb), .14);
+  color: var(--tblr-body-color);
+}
+.ts-dropdown .option.selected {
+  background-color: var(--tblr-primary);
+  color: var(--tblr-primary-fg, #fff);
+}
+.ts-dropdown .option.selected.active {
+  background-color: var(--tblr-primary);
+  filter: brightness(1.08);
+}
+.ts-dropdown [data-selectable] .highlight {
+  background: rgba(var(--tblr-yellow-rgb), .35);
+  color: inherit;
+}
