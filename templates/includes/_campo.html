@@ -1,0 +1,11 @@
+{# Campo de formulário no padrão Tabler. Uso: {% include "includes/_campo.html" with campo=form.email %} #}
+<div class="mb-3">
+  <label class="form-label" for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+  {{ campo }}
+  {% for erro in campo.errors %}
+    <div class="invalid-feedback d-block">{{ erro }}</div>
+  {% endfor %}
+  {% if campo.help_text %}
+    <small class="form-hint">{{ campo.help_text|safe }}</small>
+  {% endif %}
+</div>

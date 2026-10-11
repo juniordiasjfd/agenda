@@ -1,0 +1,37 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<title>{% block title %}Agenda{% endblock %}</title>
+{% include "includes/_head.html" %}
+{% block extra_css %}{% endblock %}
+</head>
+<body class="d-flex flex-column agenda-public-body">
+
+<div class="page page-center">
+  <div class="container container-tight py-4">
+    <div class="text-center mb-4">
+      <span class="navbar-brand navbar-brand-autodark fs-2">
+        <i class="fa-solid fa-calendar-days me-2"></i>Agenda
+      </span>
+    </div>
+
+    <div class="card card-md">
+      <div class="card-body">
+        {% include "includes/_mensagens.html" %}
+        {% block content %}{% endblock %}
+      </div>
+    </div>
+
+    {% block below_card %}{% endblock %}
+
+    <div class="text-center text-secondary small mt-4">
+      {% block footer %}&copy; {% now "Y" %} Scriba{% endblock %}
+    </div>
+  </div>
+</div>
+
+{% include "includes/_scripts.html" %}
+{% block extra_js %}{% endblock %}
+</body>
+</html>

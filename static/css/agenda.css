@@ -1,0 +1,10 @@
+/* Ajustes visuais da Agenda sobre o Tabler. */
+
+.agenda-public-body {
+  background: var(--tblr-bg-surface-secondary);
+}
+
+/* O <form> do "Sair" dentro do dropdown não deve quebrar o alinhamento. */
+.dropdown-menu form {
+  margin: 0;
+}

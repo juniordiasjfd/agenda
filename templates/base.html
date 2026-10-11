@@ -1,0 +1,87 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<title>{% block title %}Agenda{% endblock %}</title>
+{% include "includes/_head.html" %}
+{% block extra_css %}{% endblock %}
+</head>
+{# Token CSRF em toda requisição HTMX (POST/PUT/DELETE). #}
+<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+
+<div class="page">
+  <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
+    <div class="container-fluid">
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menuLateral"
+              aria-controls="menuLateral" aria-expanded="false" aria-label="Abrir menu">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <h1 class="navbar-brand navbar-brand-autodark">
+        <a href="{% url 'core:home' %}" class="text-decoration-none text-reset">
+          <i class="fa-solid fa-calendar-days me-2"></i>Agenda
+        </a>
+      </h1>
+
+      <div class="collapse navbar-collapse" id="menuLateral">
+        <ul class="navbar-nav pt-lg-3">
+          <li class="nav-item{% if active_nav == 'home' %} active{% endif %}">
+            <a class="nav-link" href="{% url 'core:home' %}">
+              <span class="nav-link-icon"><i class="fa-solid fa-house"></i></span>
+              <span class="nav-link-title">Início</span>
+            </a>
+          </li>
+
+          {% if user.is_superuser %}
+          {# ---- Só administrador ---- #}
+          <li class="nav-item">
+            <a class="nav-link" href="{% url 'admin:index' %}">
+              <span class="nav-link-icon"><i class="fa-solid fa-screwdriver-wrench"></i></span>
+              <span class="nav-link-title">Administração</span>
+            </a>
+          </li>
+          {% endif %}
+        </ul>
+
+        <ul class="navbar-nav mt-lg-auto pb-lg-3">
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside"
+               role="button" aria-expanded="false">
+              <span class="nav-link-icon"><i class="fa-solid fa-circle-user"></i></span>
+              <span class="nav-link-title text-truncate">{{ user.get_short_name }}</span>
+            </a>
+            <div class="dropdown-menu">
+              <span class="dropdown-header text-truncate">{{ user.email }}</span>
+              <a class="dropdown-item{% if active_nav == 'alterar_senha' %} active{% endif %}" href="{% url 'usuarios:password_change' %}">
+                <i class="fa-solid fa-key me-2"></i>Alterar senha
+              </a>
+              <div class="dropdown-divider"></div>
+              <form method="post" action="{% url 'usuarios:logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="dropdown-item text-danger">
+                  <i class="fa-solid fa-right-from-bracket me-2"></i>Sair
+                </button>
+              </form>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </aside>
+
+  <div class="page-wrapper">
+    {% block page_header %}{% endblock %}
+    <div class="page-body">
+      <div class="container-xl">
+        {% include "includes/_mensagens.html" %}
+        {% block content %}{% endblock %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% block modals %}{% endblock %}
+
+{% include "includes/_scripts.html" %}
+{% block extra_js %}{% endblock %}
+</body>
+</html>
