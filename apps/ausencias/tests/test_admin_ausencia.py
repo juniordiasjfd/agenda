@@ -128,6 +128,60 @@ def test_editar_periodos_pelo_inline(admin_client, admin, gravar_ausencia, colab
     assert primeiro.atualizado_por == admin
 
 
+def test_admin_recusa_sobreposicao_com_outra_ausencia(admin_client, gravar_ausencia, colaborador, ferias, planejado):
+    gravar_ausencia(colaborador, ferias, ('10/03/2026', '20/03/2026'))
+
+    response = admin_client.post(reverse('admin:ausencias_ausencia_add'), dados_admin(colaborador, ferias, [
+        ('01/03/2026', '02/03/2026', planejado),
+        ('15/03/2026', '16/03/2026', planejado),
+    ]))
+
+    assert response.status_code == 200
+    formset = response.context['inline_admin_formsets'][0].formset
+    assert formset.forms[0].errors == {}
+    assert formset.forms[1].non_field_errors() == ['Sobrepõe Férias já registrado de 10/03/2026 a 20/03/2026.']
+    assert Ausencia.objects.count() == 1
+
+
+def test_admin_recusa_sobreposicao_dentro_do_envio(admin_client, colaborador, ferias, planejado):
+    response = admin_client.post(reverse('admin:ausencias_ausencia_add'), dados_admin(colaborador, ferias, [
+        ('01/03/2026', '10/03/2026', planejado),
+        ('10/03/2026', '12/03/2026', planejado),
+    ]))
+
+    assert response.status_code == 200
+    assert not Ausencia.objects.exists()
+
+
+def test_admin_recusa_colaborador_inativo_em_registro_novo(admin_client, colaborador, ferias, planejado):
+    colaborador.ativo = False
+    colaborador.save()
+
+    response = admin_client.post(reverse('admin:ausencias_ausencia_add'), dados_admin(colaborador, ferias, [
+        ('01/03/2026', '02/03/2026', planejado),
+    ]))
+
+    assert response.status_code == 200
+    formset = response.context['inline_admin_formsets'][0].formset
+    assert formset.non_form_errors() == ['Colaborador inativo não pode receber ausências.']
+
+
+def test_admin_edicao_mantendo_periodos_nao_gera_falso_conflito(admin_client, gravar_ausencia, colaborador, ferias):
+    ausencia = gravar_ausencia(colaborador, ferias, ('10/03/2026', '20/03/2026'))
+    periodo = ausencia.periodos.get()
+
+    response = admin_client.post(
+        reverse('admin:ausencias_ausencia_change', args=[ausencia.pk]),
+        dados_admin(colaborador, ferias, [
+            ('10/03/2026', '20/03/2026', periodo.situacao, periodo.pk),
+        ], iniciais=[periodo], observacoes='Só a observação mudou'),
+    )
+
+    assert response.status_code == 302
+    ausencia.refresh_from_db()
+    assert ausencia.observacoes == 'Só a observação mudou'
+
+
 def test_inline_sugere_a_situacao_padrao(admin_client, planejado):
     response = admin_client.get(reverse('admin:ausencias_ausencia_add'))
 

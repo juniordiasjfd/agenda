@@ -7,6 +7,7 @@ from django.forms.models import BaseInlineFormSet
 from apps.ausencias import ausencias_service
 from apps.ausencias.models import Ausencia, PeriodoAusencia, SituacaoAusencia, TipoAusencia
 from apps.colaboradores.admin import AuditoriaAdminMixin
+from apps.colaboradores.models import Colaborador
 
 
 @admin.register(TipoAusencia)
@@ -80,7 +81,38 @@ class SituacaoAusenciaAdmin(AuditoriaAdminMixin, admin.ModelAdmin):
 
 
 class PeriodoInlineFormSet(BaseInlineFormSet):
-    pass
+    """Valida o envio pelo serviço (mesmas regras da tela): sobreposição,
+    limites, inativos. O admin já roda numa transação; o colaborador é
+    travado como no serviço."""
+
+    def clean(self):
+        super().clean()
+        if any(self.errors):
+            return
+        ausencia = self.instance
+        if ausencia.colaborador_id is None or ausencia.tipo_id is None:
+            return  # o formulário do cabeçalho já tem erro
+        formularios, periodos = [], []
+        for form in self.forms:
+            if self._should_delete_form(form) or (form.instance.pk is None and not form.has_changed()):
+                continue
+            formularios.append(form)
+            periodos.append(ausencias_service.PeriodoInformado(
+                form.cleaned_data.get('data_inicio'),
+                form.cleaned_data.get('data_fim'),
+                form.cleaned_data.get('situacao'),
+                id=form.instance.pk,
+            ))
+        gravada = Ausencia.todos.filter(pk=ausencia.pk).first() if ausencia.pk else None
+        colaborador = Colaborador.objects.select_for_update().get(pk=ausencia.colaborador_id)
+        try:
+            ausencias_service.validar_ausencia(colaborador, ausencia.tipo, periodos, ausencia=gravada)
+        except ausencias_service.ErroValidacaoAusencia as erro:
+            for indice, mensagens in erro.erros_por_periodo.items():
+                formularios[indice].add_error(None, mensagens)
+            gerais = erro.erros_gerais + [msg for msgs in erro.erros_campos.values() for msg in msgs]
+            if gerais:
+                raise ValidationError(gerais)
 
 
 class PeriodoAusenciaInline(admin.TabularInline):
