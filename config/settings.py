@@ -113,6 +113,7 @@ INSTALLED_APPS = [
 
     'apps.core',
     'apps.usuarios',
+    'apps.colaboradores',
 ]
 
 MIDDLEWARE = [
