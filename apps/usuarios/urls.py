@@ -15,6 +15,10 @@ urlpatterns = [
     path('cadastro/', views.CadastroView.as_view(), name='cadastro'),
     path('cadastro/recebido/', views.CadastroRecebidoView.as_view(), name='cadastro_recebido'),
 
+    # Aceite de convite (público). <str:token>: token malformado também cai
+    # na página neutra, em vez de 404.
+    path('convite/<str:token>/', views.AceitarConviteView.as_view(), name='convite_aceitar'),
+
     # Cadastros pendentes (só administrador).
     path('administracao/cadastros-pendentes/', views.PendentesView.as_view(), name='pendentes'),
     path(

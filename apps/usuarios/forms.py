@@ -95,6 +95,34 @@ class AutocadastroForm(TablerFormMixin, SetPasswordMixin, forms.Form):
 
 
 # ---------------------------------------------------------------------------
+# Convite (aceite público)
+# ---------------------------------------------------------------------------
+class AceitarConviteForm(TablerFormMixin, SetPasswordMixin, forms.Form):
+    """Nome e senha. O e-mail NÃO é campo: vem do convite e é só exibido."""
+    nome = forms.CharField(
+        label='Nome', max_length=150,
+        widget=forms.TextInput(attrs={'autofocus': True, 'autocomplete': 'name'}),
+    )
+    password1, password2 = SetPasswordMixin.create_password_fields(label1='Senha', label2='Confirmação da senha')
+
+    def __init__(self, *args, email, **kwargs):
+        self.email = email
+        super().__init__(*args, **kwargs)
+
+    def clean_nome(self):
+        return ' '.join(self.cleaned_data['nome'].split())
+
+    def clean(self):
+        self.validate_passwords()
+        return super().clean()
+
+    def _post_clean(self):
+        super()._post_clean()
+        provisorio = User(email=self.email, nome=self.cleaned_data.get('nome', ''))
+        self.validate_password_for_user(provisorio)
+
+
+# ---------------------------------------------------------------------------
 # Senha (views padrão do Django; só o visual muda).
 #
 # Envio do e-mail de redefinição: o PasswordResetForm.send_mail do Django 5.2

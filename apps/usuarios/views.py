@@ -8,7 +8,7 @@ from django.views.generic import FormView, ListView, TemplateView
 
 from apps.core.permissions import AdministradorMixin
 from apps.usuarios import usuarios_service
-from apps.usuarios.forms import AutocadastroForm, LoginForm
+from apps.usuarios.forms import AceitarConviteForm, AutocadastroForm, LoginForm
 from apps.usuarios.models import User
 
 
@@ -101,3 +101,47 @@ class RejeitarUsuarioView(AdministradorMixin, View):
         else:
             messages.success(request, f'Cadastro de {email} rejeitado e excluído.')
         return redirect('usuarios:pendentes')
+
+
+# ---------------------------------------------------------------------------
+# Convite: aceite (público)
+# ---------------------------------------------------------------------------
+class AceitarConviteView(FormView):
+    form_class = AceitarConviteForm
+    template_name = 'usuarios/convite_aceitar.html'
+    template_invalido = 'usuarios/convite_invalido.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            messages.info(request, 'Você já está conectado. Saia da sua conta para aceitar um convite.')
+            return redirect('core:home')
+        # Inexistente, expirado ou usado: a mesma página neutra.
+        self.convite = usuarios_service.obter_convite_valido(kwargs['token'])
+        if self.convite is None:
+            return render(request, self.template_invalido)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['email'] = self.convite.email
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        kwargs['convite'] = self.convite
+        return super().get_context_data(**kwargs)
+
+    def form_valid(self, form):
+        try:
+            usuarios_service.aceitar_convite(
+                self.convite.token, nome=form.cleaned_data['nome'], senha=form.cleaned_data['password1'],
+            )
+        except usuarios_service.ConviteInvalido:
+            return render(self.request, self.template_invalido)
+        except usuarios_service.EmailJaCadastrado:
+            form.add_error(
+                None,
+                'Já existe uma conta com este e-mail. Entre com ela ou use "Esqueci minha senha" no login.',
+            )
+            return self.form_invalid(form)
+        messages.success(self.request, 'Conta criada! Entre com seu e-mail e a senha que você escolheu.')
+        return redirect('usuarios:login')

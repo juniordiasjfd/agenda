@@ -1,4 +1,5 @@
 import re
+import uuid
 
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
@@ -178,3 +179,48 @@ class DominioAutocadastro(AuditoriaBase):
     def save(self, *args, **kwargs):
         self.dominio = normalizar_dominio(self.dominio)
         super().save(*args, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# Convite
+# ---------------------------------------------------------------------------
+class Convite(AuditoriaBase):
+    """Convite do administrador: quem aceita vira usuário ativo, aprovado e
+    Gestor, com o e-mail do convite. Regras em ``usuarios_service``."""
+    PENDENTE = 'pendente'
+    USADO = 'usado'
+    EXPIRADO = 'expirado'
+    ROTULOS_ESTADO = {PENDENTE: 'Pendente', USADO: 'Usado', EXPIRADO: 'Expirado'}
+
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, verbose_name='Token')
+    email = models.EmailField(verbose_name='E-mail do convidado')
+    expira_em = models.DateTimeField(verbose_name='Expira em')
+    usado_em = models.DateTimeField(null=True, blank=True, verbose_name='Usado em')
+
+    class Meta:
+        verbose_name = 'convite'
+        verbose_name_plural = 'convites'
+        ordering = ['-criado_em']
+
+    def __str__(self):
+        return self.email
+
+    def save(self, *args, **kwargs):
+        self.email = User.objects.normalize_email(self.email)
+        super().save(*args, **kwargs)
+
+    @property
+    def estado(self):
+        if self.usado_em is not None:
+            return self.USADO
+        if self.expira_em <= timezone.now():
+            return self.EXPIRADO
+        return self.PENDENTE
+
+    @property
+    def estado_rotulo(self):
+        return self.ROTULOS_ESTADO[self.estado]
+
+    @property
+    def pendente(self):
+        return self.estado == self.PENDENTE

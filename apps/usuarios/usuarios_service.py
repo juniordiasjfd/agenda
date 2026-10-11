@@ -4,6 +4,7 @@ As views só traduzem requisição/resposta; toda decisão fica aqui.
 """
 
 import logging
+import uuid
 
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import Group
@@ -11,7 +12,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.core.email_service import enviar_email
-from apps.usuarios.models import DominioAutocadastro, User
+from apps.usuarios.models import Convite, DominioAutocadastro, User
 
 logger = logging.getLogger(__name__)
 
@@ -159,3 +160,62 @@ def rejeitar_usuario(usuario_id):
         usuario.delete()
     logger.info('Cadastro rejeitado e excluído: %s.', email)
     return email
+
+
+# ---------------------------------------------------------------------------
+# Convites
+# ---------------------------------------------------------------------------
+class ConviteInvalido(Exception):
+    """Token inexistente, expirado ou já usado (a interface não diz qual)."""
+
+
+class EmailJaCadastrado(Exception):
+    """Já existe usuário com o e-mail do convite; o convite não é consumido."""
+
+
+def _parse_token(token):
+    try:
+        return uuid.UUID(str(token))
+    except (TypeError, ValueError):
+        return None
+
+
+def obter_convite_valido(token):
+    """O convite pendente (não usado e não expirado) do token, ou ``None``."""
+    token = _parse_token(token)
+    if token is None:
+        return None
+    convite = Convite.objects.filter(token=token).first()
+    if convite is None or not convite.pendente:
+        return None
+    return convite
+
+
+def aceitar_convite(token, nome, senha):
+    """Cria o usuário do convite (ativo, aprovado, Gestor) e marca ``usado_em``.
+
+    Tudo numa transação com o convite travado (``select_for_update``): dois
+    aceites simultâneos do mesmo token são serializados e o segundo encontra o
+    convite já usado (``ConviteInvalido``). Se o e-mail já tiver usuário,
+    ``EmailJaCadastrado`` e o convite continua pendente.
+    """
+    token = _parse_token(token)
+    if token is None:
+        raise ConviteInvalido()
+    with transaction.atomic():
+        convite = Convite.objects.select_for_update().filter(token=token).first()
+        if convite is None or not convite.pendente:
+            raise ConviteInvalido()
+        if User.objects.filter(email__iexact=convite.email).exists():
+            raise EmailJaCadastrado(convite.email)
+        try:
+            with transaction.atomic():
+                # Ativo => o UserManager já preenche aprovado_em.
+                usuario = User.objects.create_user(convite.email, senha, nome=nome, is_active=True)
+        except IntegrityError:
+            raise EmailJaCadastrado(convite.email)
+        usuario.groups.add(Group.objects.get(name=NOME_GRUPO_GESTOR))
+        convite.usado_em = timezone.now()
+        convite.save(update_fields=['usado_em', 'atualizado_em'])
+    logger.info('Convite aceito: %s.', usuario.email)
+    return usuario

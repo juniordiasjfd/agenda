@@ -1,0 +1,34 @@
+{% extends "base_public.html" %}
+
+{% block title %}Aceitar convite — Agenda{% endblock %}
+
+{% block content %}
+<h2 class="h2 text-center mb-3">Aceitar convite</h2>
+<p class="text-secondary mb-4">
+  Você recebeu um convite para a Agenda. Informe seu nome e escolha uma senha
+  para criar a sua conta.
+</p>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  {% for erro in form.non_field_errors %}
+    <div class="alert alert-danger" role="alert">{{ erro }}</div>
+  {% endfor %}
+
+  {# O e-mail vem do convite: só exibido, não é enviado no POST. #}
+  <div class="mb-3">
+    <label class="form-label" for="email-convite">E-mail</label>
+    <input type="email" id="email-convite" class="form-control" value="{{ convite.email }}" readonly disabled>
+  </div>
+  {% include "includes/_campo.html" with campo=form.nome %}
+  {% include "includes/_campo.html" with campo=form.password1 %}
+  {% include "includes/_campo.html" with campo=form.password2 %}
+
+  <div class="form-footer">
+    <button type="submit" class="btn btn-primary w-100">
+      <i class="fa-solid fa-user-check me-2"></i>Criar conta
+    </button>
+  </div>
+</form>
+{% endblock %}

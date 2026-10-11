@@ -1,0 +1,20 @@
+{% extends "base_public.html" %}
+
+{% block title %}Convite indisponível — Agenda{% endblock %}
+
+{% block content %}
+<div class="text-center">
+  <div class="mb-3 text-secondary fs-1"><i class="fa-solid fa-link-slash"></i></div>
+  <h2 class="h2 mb-3">Convite indisponível</h2>
+  <p class="text-secondary mb-0">
+    Este link de convite não é válido. Se você precisa de acesso, peça um novo
+    convite ao administrador do sistema.
+  </p>
+</div>
+{% endblock %}
+
+{% block below_card %}
+<div class="text-center text-secondary mt-3">
+  <a href="{% url 'usuarios:login' %}">Ir para o login</a>
+</div>
+{% endblock %}
