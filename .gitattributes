@@ -1,0 +1,2 @@
+# Fixtures de CSV: bytes exatos (BOM, CRLF, Windows-1252); o git não converte.
+apps/ausencias/tests/fixtures/*.csv -text

@@ -1,0 +1,6 @@
+﻿Titulo;Colaborador;TipoEvento;DataInicio;DataFim;QuantidadeDias;Situacao;SolicitacaoID;Observacoes;DataSolicitacao
+Fulana  de Teste Sintética - Férias;Fulana  de Teste Sintética;Férias;2026-01-05;2026-01-16;12;Planejado;SMG7X3K2AB;Viagem em família;2025-11-03T13:45:10.512Z
+Fulana  de Teste Sintética - Férias;Fulana  de Teste Sintética;Férias;2026-07-06;2026-07-10;5;Planejado;SMG7X3K2AB;Viagem em família;2025-11-03T13:45:10.512Z
+Beltrano Exemplo - Banco de horas;Beltrano Exemplo;Banco de horas;2026-02-13;2026-02-13;1;Planejado;SMH01ZQ9CD;"Consulta; retorno à tarde";2025-12-01T09:02:00.000Z
+Ciclano Fictício - Licença;Ciclano Fictício;Licença;2026-03-02;2026-03-31;30;Planejado;SMJ88KLM1E;"Licença médica
+retorno previsto em abril";2026-02-20T18:30:00.000Z

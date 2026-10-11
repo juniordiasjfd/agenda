@@ -1,0 +1,4 @@
+Colaborador,TipoEvento,DataInicio,DataFim,Situacao,SolicitacaoID,Observacoes
+Fulana de Teste Sintética,Férias,5/1/2026,16/01/2026,Planejado,SMG7X3K2AB,Viagem em família
+Beltrano Exemplo,Férias,02/03/2026,06/03/2026,Aprovado,SMQ55RSTUV,"Observação com vírgula, e acento"
+Ciclano Fictício,Outro,10/03/2026,12/03/2026,,,
