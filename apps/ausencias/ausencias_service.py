@@ -564,8 +564,9 @@ def validar_ausencia(colaborador, tipo, periodos, ausencia=None):
 # da Ausencia (edição/exclusão/restauração), depois os Colaboradores, por pk.
 # Travar o colaborador serializa os envios dele: a checagem de sobreposição
 # só lê o banco depois que o envio concorrente gravou (READ COMMITTED).
-def _travar_colaboradores(*ids):
-    """``{pk: Colaborador}`` recarregados e travados (``select_for_update``)."""
+def travar_colaboradores(*ids):
+    """``{pk: Colaborador}`` recarregados e travados (``select_for_update``),
+    em ordem de pk. Usar dentro de ``transaction.atomic``."""
     ids = {pk for pk in ids if pk is not None}
     return {c.pk: c for c in Colaborador.objects.select_for_update().filter(pk__in=ids).order_by('pk')}
 
@@ -615,7 +616,7 @@ def criar_ausencia(colaborador, tipo, periodos, observacoes, usuario, codigo=Non
         if codigo is not None:
             codigo = codigo.strip()
             _validar_codigo_informado(codigo)
-        colaborador = _travar_colaboradores(pk_colaborador).get(pk_colaborador)
+        colaborador = travar_colaboradores(pk_colaborador).get(pk_colaborador)
         tipo = _recarregar_tipo(tipo)
         resolvidos = validar_ausencia(colaborador, tipo, periodos)
         ausencia = Ausencia.objects.create(
@@ -653,7 +654,7 @@ def atualizar_ausencia(ausencia, colaborador, tipo, periodos, observacoes, usuar
         if versao is not None and gravada.atualizado_em != versao:
             raise AusenciaAlterada()
         pk_colaborador = colaborador.pk if colaborador is not None else None
-        colaborador = _travar_colaboradores(gravada.colaborador_id, pk_colaborador).get(pk_colaborador)
+        colaborador = travar_colaboradores(gravada.colaborador_id, pk_colaborador).get(pk_colaborador)
         tipo = _recarregar_tipo(tipo)
         resolvidos = validar_ausencia(colaborador, tipo, periodos, ausencia=gravada)
 
@@ -704,7 +705,7 @@ def restaurar_ausencia(ausencia, usuario):
         gravada = _travar_ausencia(ausencia)
         if not gravada.esta_excluido:
             return gravada
-        colaborador = _travar_colaboradores(gravada.colaborador_id)[gravada.colaborador_id]
+        colaborador = travar_colaboradores(gravada.colaborador_id)[gravada.colaborador_id]
         periodos = list(gravada.periodos.select_related('situacao'))
         erros = _Erros()
         for conflito in periodos_conflitantes(colaborador, periodos, excluir_ausencia=gravada):
