@@ -1,8 +1,13 @@
+import re
+
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.functions import Lower
 from django.utils import timezone
+
+from apps.core.models import AuditoriaBase
 
 
 class UserManager(BaseUserManager):
@@ -124,3 +129,52 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def aguardando_aprovacao(self):
         return not self.is_active and self.aprovado_em is None
+
+
+# ---------------------------------------------------------------------------
+# Autocadastro
+# ---------------------------------------------------------------------------
+# Rótulos de 1 a 63 caracteres (letras, dígitos e hífen, sem hífen nas
+# pontas), ao menos um ponto e TLD só de letras. Aplicado ao valor já
+# normalizado (minúsculas).
+DOMINIO_RE = re.compile(r'^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$')
+
+
+def normalizar_dominio(valor):
+    """Minúsculas, sem espaços e sem "@" inicial: ' @Scriba.com.br ' -> 'scriba.com.br'."""
+    return ''.join((valor or '').split()).lower().lstrip('@')
+
+
+class DominioAutocadastro(AuditoriaBase):
+    """Domínio de e-mail autorizado a fazer autocadastro.
+
+    O autocadastro só fica habilitado se houver ao menos um domínio ativo, e o
+    e-mail só é aceito se o domínio (parte após o último "@") for IGUAL a um
+    domínio ativo — nunca por sufixo. Ver ``usuarios_service.email_permitido``.
+    """
+    dominio = models.CharField(
+        max_length=253,
+        unique=True,
+        verbose_name='Domínio',
+        help_text='Ex.: scriba.com.br (sem "@"). Só e-mails exatamente deste domínio são aceitos; subdomínios não.',
+        error_messages={'unique': 'Este domínio já está cadastrado.'},
+    )
+    ativo = models.BooleanField(default=True, verbose_name='Ativo')
+
+    class Meta:
+        verbose_name = 'domínio de autocadastro'
+        verbose_name_plural = 'domínios de autocadastro'
+        ordering = ['dominio']
+
+    def __str__(self):
+        return self.dominio
+
+    def clean(self):
+        super().clean()
+        self.dominio = normalizar_dominio(self.dominio)
+        if not DOMINIO_RE.match(self.dominio):
+            raise ValidationError({'dominio': 'Informe um domínio válido, por exemplo: scriba.com.br.'})
+
+    def save(self, *args, **kwargs):
+        self.dominio = normalizar_dominio(self.dominio)
+        super().save(*args, **kwargs)

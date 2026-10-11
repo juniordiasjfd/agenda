@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.utils import timezone
 
 from apps.usuarios.forms import UserAdminChangeForm, UserAdminCreationForm
-from apps.usuarios.models import User
+from apps.usuarios.models import DominioAutocadastro, User
 
 
 @admin.register(User)
@@ -35,4 +35,20 @@ class UserAdmin(DjangoUserAdmin):
         # UserManager).
         if not change and obj.is_active and obj.aprovado_em is None:
             obj.aprovado_em = timezone.now()
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(DominioAutocadastro)
+class DominioAutocadastroAdmin(admin.ModelAdmin):
+    list_display = ('dominio', 'ativo', 'atualizado_em', 'atualizado_por')
+    list_editable = ('ativo',)
+    list_filter = ('ativo',)
+    search_fields = ('dominio',)
+    fields = ('dominio', 'ativo', 'criado_em', 'criado_por', 'atualizado_em', 'atualizado_por')
+    readonly_fields = ('criado_em', 'criado_por', 'atualizado_em', 'atualizado_por')
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.criado_por = request.user
+        obj.atualizado_por = request.user
         super().save_model(request, obj, form, change)
