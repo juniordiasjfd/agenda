@@ -173,6 +173,38 @@ def _desmarcar_padrao(exceto):
 
 
 # ---------------------------------------------------------------------------
+# Opções dos formulários
+# ---------------------------------------------------------------------------
+# Inativos não podem ser escolhidos em registros novos; na edição, o que a
+# ausência já usa continua na lista (``validar_ausencia`` aceita mantê-lo).
+def colaboradores_para_escolha(ausencia=None):
+    filtro = Q(ativo=True)
+    if ausencia is not None:
+        filtro |= Q(pk=ausencia.colaborador_id)
+    return Colaborador.objects.filter(filtro)
+
+
+def tipos_para_escolha(ausencia=None):
+    filtro = Q(ativo=True)
+    if ausencia is not None:
+        filtro |= Q(pk=ausencia.tipo_id)
+    return TipoAusencia.objects.filter(filtro)
+
+
+def situacoes_para_escolha(ausencia=None):
+    filtro = Q(ativo=True)
+    if ausencia is not None:
+        filtro |= Q(periodos__ausencia=ausencia)
+    return SituacaoAusencia.objects.filter(filtro).distinct()
+
+
+def colaborador_do_usuario(usuario):
+    """Colaborador ATIVO vinculado ao usuário (pré-seleção no registro
+    novo), ou ``None``."""
+    return Colaborador.objects.filter(usuario_id=usuario.pk, ativo=True).first() if usuario.pk else None
+
+
+# ---------------------------------------------------------------------------
 # Sobreposição
 # ---------------------------------------------------------------------------
 def _fmt(data):

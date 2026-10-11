@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}{% if ausencia %}Editar ausência{% else %}Registrar ausência{% endif %} — Agenda{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="page-pretitle">
+      <a href="{% url 'ausencias:lista' %}">Ausências</a>
+    </div>
+    <h2 class="page-title">
+      {% if ausencia %}Editar ausência <span class="text-secondary ms-2 font-monospace">{{ ausencia.codigo }}</span>{% else %}Registrar ausência{% endif %}
+    </h2>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" novalidate id="form-ausencia">
+  {% csrf_token %}
+  <div class="row row-cards">
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">Dados</h3></div>
+        <div class="card-body">
+          {% for erro in cabecalho.non_field_errors %}
+            <div class="alert alert-danger" role="alert">{{ erro }}</div>
+          {% endfor %}
+          {% include "includes/_campo.html" with campo=cabecalho.colaborador %}
+          {% include "includes/_campo.html" with campo=cabecalho.tipo %}
+          {% include "includes/_campo.html" with campo=cabecalho.observacoes %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">Períodos</h3></div>
+        <div class="card-body">
+          {{ periodos.management_form }}
+          {% for erro in periodos.non_form_errors %}
+            <div class="alert alert-danger" role="alert">{{ erro }}</div>
+          {% endfor %}
+          <div id="periodos">
+            {% for form, numero in periodos.linhas %}
+              {% include "ausencias/_linha_periodo.html" %}
+            {% endfor %}
+          </div>
+        </div>
+        <div class="card-footer d-flex">
+          <a href="{% url 'ausencias:lista' %}" class="btn btn-link">Cancelar</a>
+          <button type="submit" class="btn btn-primary ms-auto">
+            <i class="fa-solid fa-floppy-disk me-2"></i>{% if ausencia %}Salvar alterações{% else %}Registrar{% endif %}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}

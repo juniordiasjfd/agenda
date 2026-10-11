@@ -1,0 +1,28 @@
+{# Uma linha do formset de períodos. Contexto: form, numero (None = removida). #}
+<div class="periodo border rounded p-3 mb-2{% if form.errors %} border-danger{% endif %}"{% if numero is None %} hidden{% endif %}>
+  {{ form.id }}
+  <span class="d-none">{{ form.DELETE }}</span>
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-md-auto">
+      <span class="fw-bold text-nowrap">Período <span class="periodo-numero">{{ numero }}</span></span>
+    </div>
+    <div class="col-6 col-md">
+      <label class="form-label" for="{{ form.data_inicio.id_for_label }}">{{ form.data_inicio.label }}</label>
+      {{ form.data_inicio }}
+    </div>
+    <div class="col-6 col-md">
+      <label class="form-label" for="{{ form.data_fim.id_for_label }}">{{ form.data_fim.label }}</label>
+      {{ form.data_fim }}
+    </div>
+    <div class="col-12 col-md">
+      <label class="form-label" for="{{ form.situacao.id_for_label }}">{{ form.situacao.label }}</label>
+      {{ form.situacao }}
+    </div>
+  </div>
+  {% for campo in form.visible_fields %}{% for erro in campo.errors %}
+    <div class="invalid-feedback d-block">{{ campo.label }}: {{ erro }}</div>
+  {% endfor %}{% endfor %}
+  {% for erro in form.non_field_errors %}
+    <div class="invalid-feedback d-block">{{ erro }}</div>
+  {% endfor %}
+</div>

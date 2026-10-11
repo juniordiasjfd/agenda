@@ -70,3 +70,48 @@ def colaborador(db):
 @pytest.fixture
 def outro_colaborador(db):
     return Colaborador.objects.create(nome='Bruno Lima')
+
+
+# ---------------------------------------------------------------------------
+# Telas
+# ---------------------------------------------------------------------------
+def iso(texto):
+    """'10/03/2026' -> '2026-03-10' (valor de <input type="date">)."""
+    return d(texto).isoformat() if texto else ''
+
+
+def dados_formulario(colaborador, tipo, *linhas, observacoes='', iniciais=0, **extras):
+    """POST da tela de registro/edição. Cada linha é um dict com
+    ``inicio``/``fim`` ('dd/mm/aaaa') e, opcionais, ``situacao`` (objeto),
+    ``id`` e ``remover``."""
+    dados = {
+        'colaborador': colaborador.pk if colaborador else '',
+        'tipo': tipo.pk if tipo else '',
+        'observacoes': observacoes,
+        'periodos-TOTAL_FORMS': str(len(linhas)),
+        'periodos-INITIAL_FORMS': str(iniciais),
+        'periodos-MIN_NUM_FORMS': '0',
+        'periodos-MAX_NUM_FORMS': '12',
+        **extras,
+    }
+    padrao = SituacaoAusencia.objects.get(padrao=True)
+    for i, linha_ in enumerate(linhas):
+        prefixo = f'periodos-{i}-'
+        dados[prefixo + 'data_inicio'] = iso(linha_.get('inicio'))
+        dados[prefixo + 'data_fim'] = iso(linha_.get('fim'))
+        dados[prefixo + 'situacao'] = str(linha_.get('situacao', padrao).pk)
+        if linha_.get('id'):
+            dados[prefixo + 'id'] = str(linha_['id'])
+        if linha_.get('remover'):
+            dados[prefixo + 'DELETE'] = 'on'
+    return dados
+
+
+def linha(inicio, fim, **extras):
+    return {'inicio': inicio, 'fim': fim, **extras}
+
+
+@pytest.fixture
+def gestor_client(client, gestor):
+    client.force_login(gestor)
+    return client
