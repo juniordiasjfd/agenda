@@ -255,6 +255,12 @@ LOGOUT_REDIRECT_URL = 'usuarios:login'
 # Validade do link de redefinição de senha: 24 h.
 PASSWORD_RESET_TIMEOUT = 86400
 
+# Importação de CSV (apps/ausencias/csv_service.py). Arquivo fora do limite é
+# recusado sozinho; os demais do mesmo envio seguem.
+CSV_IMPORTACAO_MAX_ARQUIVOS = 20
+CSV_IMPORTACAO_MAX_BYTES = 2 * 1024 * 1024
+CSV_IMPORTACAO_MAX_REGISTROS = 5000
+
 
 # E-mail
 #
