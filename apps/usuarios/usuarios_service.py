@@ -122,14 +122,25 @@ def contar_pendentes():
     return _pendentes().count()
 
 
-def aprovar_usuario(usuario_id, url_login):
+class VinculoRecusado(Exception):
+    """O colaborador escolhido não pode ser vinculado; a mensagem vai para o
+    administrador e nada é alterado."""
+
+
+def aprovar_usuario(usuario_id, url_login, colaborador_id=None, aprovado_por=None):
     """Ativa o pendente, grava ``aprovado_em``, põe no grupo Gestor e avisa o
     usuário por e-mail (``url_login``: link absoluto do login).
 
-    Idempotente: se já estiver aprovado e ativo, não altera nada e devolve
-    ``(usuario, False)``. Usuário desativado não é "reaprovado" por aqui
-    (``UsuarioNaoPendente``) — reativar é no /admin/. ``User.DoesNotExist`` se
-    o id não existir.
+    Com ``colaborador_id``, vincula o usuário a esse colaborador na mesma
+    transação, com o colaborador travado: se ele não existir, estiver inativo
+    ou já tiver sido vinculado a outro usuário, ``VinculoRecusado`` e a
+    aprovação NÃO acontece. ``aprovado_por`` fica como ``atualizado_por`` do
+    colaborador.
+
+    Idempotente: se já estiver aprovado e ativo, não altera nada (nem o
+    vínculo) e devolve ``(usuario, False)``. Usuário desativado não é
+    "reaprovado" por aqui (``UsuarioNaoPendente``) — reativar é no /admin/.
+    ``User.DoesNotExist`` se o id não existir.
     """
     with transaction.atomic():
         usuario = User.objects.select_for_update().get(pk=usuario_id)
@@ -137,11 +148,29 @@ def aprovar_usuario(usuario_id, url_login):
             return usuario, False
         if not eh_pendente(usuario):
             raise UsuarioNaoPendente(usuario.email)
+        colaborador = None
+        if colaborador_id is not None:
+            colaborador = Colaborador.objects.select_for_update().filter(pk=colaborador_id).first()
+            if colaborador is None:
+                raise VinculoRecusado('O colaborador escolhido não existe mais.')
+            if not colaborador.ativo:
+                raise VinculoRecusado(f'O colaborador "{colaborador.nome}" está inativo.')
+            if colaborador.usuario_id is not None:
+                raise VinculoRecusado(
+                    f'O colaborador "{colaborador.nome}" já está vinculado a outro usuário.'
+                )
         usuario.is_active = True
         usuario.aprovado_em = timezone.now()
         usuario.save(update_fields=['is_active', 'aprovado_em'])
         usuario.groups.add(Group.objects.get(name=NOME_GRUPO_GESTOR))
-    logger.info('Cadastro aprovado: %s.', usuario.email)
+        if colaborador is not None:
+            colaborador.usuario = usuario
+            colaborador.atualizado_por = aprovado_por
+            colaborador.save(update_fields=['usuario', 'atualizado_por', 'atualizado_em'])
+    logger.info(
+        'Cadastro aprovado: %s%s.', usuario.email,
+        f' (vinculado ao colaborador "{colaborador.nome}")' if colaborador else '',
+    )
     enviar_email(
         'usuarios/emails/cadastro_aprovado_assunto.txt',
         'usuarios/emails/cadastro_aprovado.txt',

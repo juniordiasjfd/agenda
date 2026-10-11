@@ -6,9 +6,10 @@ from django.urls import reverse, reverse_lazy
 from django.views import View
 from django.views.generic import DetailView, FormView, ListView, TemplateView
 
+from apps.colaboradores import colaboradores_service
 from apps.core.permissions import AdministradorMixin
 from apps.usuarios import usuarios_service
-from apps.usuarios.forms import AceitarConviteForm, AutocadastroForm, ConviteForm, LoginForm
+from apps.usuarios.forms import AceitarConviteForm, AprovarCadastroForm, AutocadastroForm, ConviteForm, LoginForm
 from apps.usuarios.models import Convite, User
 
 
@@ -65,26 +66,46 @@ class PendentesView(AdministradorMixin, ListView):
     extra_context = {'active_nav': 'pendentes'}
 
     def get_queryset(self):
-        return usuarios_service.listar_pendentes()
+        pendentes = list(usuarios_service.listar_pendentes())
+        # Só sugestão: o select já vem com o homônimo marcado, mas nada é
+        # vinculado sem o administrador confirmar a aprovação.
+        for pendente in pendentes:
+            pendente.colaborador_sugerido = colaboradores_service.colaborador_por_nome(pendente.nome)
+        return pendentes
+
+    def get_context_data(self, **kwargs):
+        kwargs['colaboradores_vinculaveis'] = list(colaboradores_service.colaboradores_vinculaveis())
+        return super().get_context_data(**kwargs)
 
 
 class AprovarUsuarioView(AdministradorMixin, View):
     http_method_names = ['post']
 
     def post(self, request, pk):
+        form = AprovarCadastroForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, 'Colaborador inválido; nada foi alterado.')
+            return redirect('usuarios:pendentes')
         try:
             usuario, aprovado_agora = usuarios_service.aprovar_usuario(
                 pk, url_login=request.build_absolute_uri(reverse('usuarios:login')),
+                colaborador_id=form.cleaned_data['colaborador'], aprovado_por=request.user,
             )
         except User.DoesNotExist:
             raise Http404('Usuário não encontrado.')
         except usuarios_service.UsuarioNaoPendente as erro:
             messages.error(request, f'{erro} não está aguardando aprovação; nada foi alterado.')
+        except usuarios_service.VinculoRecusado as erro:
+            messages.error(request, f'{erro} O cadastro não foi aprovado; escolha outro colaborador ou nenhum.')
         else:
-            if aprovado_agora:
-                messages.success(request, f'Cadastro de {usuario.email} aprovado.')
-            else:
+            if not aprovado_agora:
                 messages.info(request, f'{usuario.email} já estava aprovado.')
+            elif hasattr(usuario, 'colaborador'):
+                messages.success(
+                    request, f'Cadastro de {usuario.email} aprovado e vinculado a "{usuario.colaborador}".',
+                )
+            else:
+                messages.success(request, f'Cadastro de {usuario.email} aprovado.')
         return redirect('usuarios:pendentes')
 
 

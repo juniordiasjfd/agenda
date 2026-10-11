@@ -97,6 +97,15 @@ class AutocadastroForm(TablerFormMixin, SetPasswordMixin, forms.Form):
 
 
 # ---------------------------------------------------------------------------
+# Aprovação
+# ---------------------------------------------------------------------------
+class AprovarCadastroForm(forms.Form):
+    """POST do botão "Aprovar". O colaborador é só o id: as regras (ativo,
+    sem usuário, trava) ficam em ``usuarios_service.aprovar_usuario``."""
+    colaborador = forms.IntegerField(required=False, min_value=1)
+
+
+# ---------------------------------------------------------------------------
 # Convite
 # ---------------------------------------------------------------------------
 class ConviteForm(TablerFormMixin, forms.Form):

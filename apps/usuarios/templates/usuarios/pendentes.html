@@ -21,6 +21,7 @@
           <th>Nome</th>
           <th>E-mail</th>
           <th>Cadastrado em</th>
+          <th>Vincular ao colaborador</th>
           <th class="w-1"></th>
         </tr>
       </thead>
@@ -30,9 +31,26 @@
           <td>{{ pendente.nome }}</td>
           <td class="text-secondary">{{ pendente.email }}</td>
           <td class="text-secondary text-nowrap">{{ pendente.date_joined|date:"d/m/Y H:i" }}</td>
+          <td>
+            {# Opcional. Pré-seleciona o colaborador de mesmo nome (sem acento/caixa), se houver exatamente um. #}
+            <select name="colaborador" form="aprovar-{{ pendente.pk }}" class="form-select form-select-sm"
+                    aria-label="Colaborador a vincular a {{ pendente.email }}">
+              <option value="">Nenhum (sem vínculo)</option>
+              {% for colaborador in colaboradores_vinculaveis %}
+                <option value="{{ colaborador.pk }}"{% if colaborador.pk == pendente.colaborador_sugerido.pk %} selected{% endif %}>{{ colaborador.nome }}</option>
+              {% endfor %}
+            </select>
+            {% if pendente.colaborador_sugerido %}
+              <small class="form-hint">Sugerido pelo nome. Confira antes de aprovar.</small>
+            {% endif %}
+          </td>
           <td class="text-nowrap">
             <form method="post" action="{% url 'usuarios:aprovar_usuario' pendente.pk %}" class="d-inline"
-                  x-data @submit="if (!confirm('Aprovar o cadastro de {{ pendente.email|escapejs }}?')) $event.preventDefault()">
+                  id="aprovar-{{ pendente.pk }}"
+                  x-data @submit="
+                    const sel = $el.elements.colaborador;
+                    const vinculo = sel && sel.value ? ' e vincular a ' + sel.options[sel.selectedIndex].text : ' sem vínculo com colaborador';
+                    if (!confirm('Aprovar o cadastro de {{ pendente.email|escapejs }}' + vinculo + '?')) $event.preventDefault()">
               {% csrf_token %}
               <button type="submit" class="btn btn-success btn-sm">
                 <i class="fa-solid fa-check me-1"></i>Aprovar
