@@ -164,8 +164,11 @@ do settings) estão em `legado/referencias/`: reproduza esses padrões.
 ## Etapas
 1. Projeto base, settings (incl. e-mail), User customizado (e-mail), login,
    grupos, core.
-2. Cadastro, domínios de autocadastro, aprovação e convite de usuários.
-3. Departamento, Colaborador, comando `carregar_colaboradores`.
+2. Cadastro, domínios de autocadastro, aprovação e convite de usuários
+   (SEM vínculo com Colaborador; o campo Convite.colaborador e a escolha de
+   vínculo na aprovação entram na etapa 3).
+3. Departamento, Colaborador (+ vínculo usuário↔colaborador na aprovação,
+   no convite e na edição do colaborador), comando `carregar_colaboradores`.
 4. Tipos, situações, Ausencia/Periodo, serviço de sobreposição e testes.
 5. Registro/edição (formset), listagem com filtros, exclusão lógica e lixeira.
 6. Import/export CSV com prévia.
