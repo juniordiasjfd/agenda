@@ -105,6 +105,19 @@ do settings) estão em `legado/referencias/`: reproduza esses padrões.
   apaga de vez.
 - Comparação de nomes (busca e importação): ignorar acento, caixa e espaços
   duplos (ver `norm()` em `legado/index.html`).
+- Conflito: mesmo colaborador, intervalos inclusivos que se cruzam
+  (inicio_a <= fim_b e inicio_b <= fim_a), independentemente do tipo. Só conta
+  quem está em ausência não excluída e situação com conta_como_ausencia=True.
+- O serviço de criação/edição/restauração trava a linha do Colaborador
+  (select_for_update) dentro de transaction.atomic para serializar registros
+  concorrentes do mesmo colaborador. Restaurar da lixeira rechecaga conflito.
+- Datas: ano permitido 2000–2100. Máximo de 12 períodos por ausência.
+- Ausencia.codigo: até 32 caracteres, único; aceita IDs legados do CSV antigo;
+  os novos são gerados com `secrets` (8 caracteres, sem ambíguos 0/O/1/I/L).
+- Colaborador inativo não recebe novas ausências. Tipo/situação inativos não
+  podem ser escolhidos em novos registros, mas ausências existentes que os
+  usam permanecem válidas.
+- Tipos e situações são gerenciados no /admin/ do Django (sem telas próprias).
 
 ## CSV (compatível com os arquivos já existentes)
 - Colunas: Titulo;Colaborador;TipoEvento;DataInicio;DataFim;QuantidadeDias;
