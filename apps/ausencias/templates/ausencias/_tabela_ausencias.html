@@ -69,6 +69,10 @@
     <p class="m-0 text-secondary">
       {{ paginator.count }} ausência{{ paginator.count|pluralize:"s" }}
     </p>
+    {# Dentro do fragmento trocado pelo HTMX: o link acompanha os filtros atuais. #}
+    <a href="{% url 'ausencias:exportar' %}{% querystring page=None %}" class="btn btn-sm ms-3" id="exportar-csv">
+      <i class="fa-solid fa-file-csv me-2"></i>Exportar CSV
+    </a>
     {% if is_paginated %}
     <ul class="pagination m-0 ms-auto">
       <li class="page-item{% if not page_obj.has_previous %} disabled{% endif %}">

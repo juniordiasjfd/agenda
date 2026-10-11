@@ -3,6 +3,7 @@ from datetime import date
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -10,7 +11,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
 from django.views.generic import DetailView, ListView
 
-from apps.ausencias import ausencias_service
+from apps.ausencias import ausencias_service, csv_service
 from apps.ausencias.forms import ConfirmarApagarForm, FiltroAusenciasForm, FiltroLixeiraForm, montar_formularios
 from apps.ausencias.models import Ausencia
 from apps.core.permissions import AdministradorMixin, GestorMixin
@@ -45,6 +46,22 @@ class AusenciasView(LoginRequiredMixin, ListView):
         # parcial HTMX, a URL da requisição tem os mesmos parâmetros.
         kwargs['voltar'] = reverse('ausencias:lista') + (f'?{self.request.GET.urlencode()}' if self.request.GET else '')
         return super().get_context_data(**kwargs)
+
+
+class ExportarCSVView(LoginRequiredMixin, View):
+    """CSV de todos os períodos das ausências que a listagem mostra com os
+    mesmos filtros da querystring (sem paginação). Qualquer autenticado."""
+
+    def get(self, request):
+        filtro = FiltroAusenciasForm(request.GET or None)
+        ausencias = ausencias_service.ausencias_filtradas(**filtro.filtros())
+        return resposta_csv(csv_service.exportar_csv(ausencias), csv_service.nome_arquivo_exportacao())
+
+
+def resposta_csv(conteudo, nome_arquivo):
+    resposta = HttpResponse(conteudo.encode('utf-8'), content_type='text/csv; charset=utf-8')
+    resposta['Content-Disposition'] = f'attachment; filename="{nome_arquivo}"'
+    return resposta
 
 
 # ---------------------------------------------------------------------------
