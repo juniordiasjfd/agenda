@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Editar departamento{% else %}Novo departamento{% endif %} — Agenda{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="page-pretitle">
+      <a href="{% url 'colaboradores:departamentos' %}">Departamentos</a>
+    </div>
+    <h2 class="page-title">{% if object %}Editar {{ object.nome }}{% else %}Novo departamento{% endif %}</h2>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-6">
+    <div class="card">
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="card-body">
+          {% for erro in form.non_field_errors %}
+            <div class="alert alert-danger" role="alert">{{ erro }}</div>
+          {% endfor %}
+          {% include "includes/_campo.html" with campo=form.nome %}
+        </div>
+        <div class="card-footer d-flex">
+          <a href="{% url 'colaboradores:departamentos' %}" class="btn btn-link">Cancelar</a>
+          <button type="submit" class="btn btn-primary ms-auto">
+            <i class="fa-solid fa-floppy-disk me-2"></i>Salvar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Departamentos — Agenda{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <div class="page-pretitle">Administração</div>
+        <h2 class="page-title">Departamentos</h2>
+      </div>
+      <div class="col-auto ms-auto">
+        <a href="{% url 'colaboradores:departamento_criar' %}" class="btn btn-primary">
+          <i class="fa-solid fa-plus me-2"></i>Novo departamento
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  {% if departamentos %}
+  <div class="table-responsive">
+    <table class="table table-vcenter card-table">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Colaboradores</th>
+          <th class="w-1"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for departamento in departamentos %}
+        <tr>
+          <td>{{ departamento.nome }}</td>
+          <td class="text-secondary">
+            {{ departamento.total_colaboradores }}
+          </td>
+          <td class="text-nowrap">
+            <a href="{% url 'colaboradores:departamento_editar' departamento.pk %}" class="btn btn-sm" title="Editar">
+              <i class="fa-solid fa-pen"></i>
+            </a>
+            {% if departamento.total_colaboradores %}
+            <span class="d-inline-block" title="Tem colaboradores: não pode ser excluído">
+              <button type="button" class="btn btn-sm btn-outline-danger" disabled>
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </span>
+            {% else %}
+            <form method="post" action="{% url 'colaboradores:departamento_excluir' departamento.pk %}" class="d-inline"
+                  x-data @submit="if (!confirm('Excluir o departamento {{ departamento.nome|escapejs }}? Esta ação não pode ser desfeita.')) $event.preventDefault()">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body text-center text-secondary py-5">
+    <i class="fa-solid fa-sitemap fs-1 mb-3 d-block"></i>
+    Nenhum departamento cadastrado ainda.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
