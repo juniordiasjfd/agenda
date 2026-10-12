@@ -1,10 +1,10 @@
-# Agenda — Scriba
+# Agenda
 
 Sistema interno para registrar e visualizar ausências (férias, banco de horas,
 licença, etc.) dos colaboradores. Substitui um fluxo antigo baseado em HTML
 offline + CSV por e-mail. Os arquivos do fluxo antigo estão em `legado/` e são
 a referência das regras de negócio (validações, CSV, Gantt). Exemplos das
-convenções de código da Scriba (AuditoriaBase, *_service.py, bloco de e-mail
+convenções de código (AuditoriaBase, *_service.py, bloco de e-mail
 do settings) estão em `legado/referencias/`: reproduza esses padrões.
 `legado/` existe só na máquina local, FORA do Git (`.gitignore`): tem dados
 pessoais (nomes reais em `funcionarios.js`). Nunca versionar; testes usam
@@ -12,7 +12,7 @@ fixtures sintéticas com nomes fictícios.
 
 ## Stack
 - Python + Django, PostgreSQL. Usar as mesmas versões dos demais projetos
-  Scriba (fixar em requirements): [legado\referencias\requirements_example.txt].
+  (fixar em requirements): [legado\referencias\requirements_example.txt].
 - Frontend: Tabler UI + HTMX + Alpine.js, ícones Font Awesome. Sem SPA.
 - Testes: pytest-django.
 - Hospedagem: Render (Web Service pago + Postgres pago com backup). Estáticos
@@ -49,7 +49,7 @@ fixtures sintéticas com nomes fictícios.
   IGUALDADE exata, em minúsculas) esteja em DominioAutocadastro ativo. Sem
   domínio ativo, o autocadastro fica desligado. DominioAutocadastro: dominio
   (único), ativo; editável pelo admin.py. A data migration cria
-  `scriba.com.br` ativo.
+  `dominio.com.br` ativo.
 - O autocadastro cria User com is_active=False e aprovado_em nulo, sem grupo.
   Tela "Cadastros pendentes" para o admin aprovar (is_active=True, aprovado_em,
   grupo Gestor, e opcionalmente vincular a um Colaborador) ou rejeitar
@@ -246,7 +246,7 @@ fixtures sintéticas com nomes fictícios.
   filtros do painel, fluxo de cadastro/aprovação/convite (incluindo domínio
   não permitido e autocadastro desligado), exclusão lógica.
 - Migrations versionadas; nunca editar migration já aplicada em produção.
-  Cargas iniciais (tipos, situações, grupo Gestor, domínio scriba.com.br) via
+  Cargas iniciais (tipos, situações, grupo Gestor, domínio dominio.com.br) via
   data migration.
 - Segredos só em variáveis de ambiente; nunca commitar `.env`.
 - Commits pequenos, um por etapa, mensagens em português.
@@ -324,8 +324,8 @@ fixtures sintéticas com nomes fictícios.
 
 ## Comandos úteis
 - `python manage.py carregar_colaboradores legado/referencias/funcionarios.js` (`--dry-run` para simular; arquivo só local, em produção ver `docs/deploy.md`)
-- `python manage.py testar_email voce@scriba.com.br`
-- `python manage.py axes_reset_username fulano@scriba.com.br` (desbloqueia login)
+- `python manage.py testar_email voce@dominio.com.br`
+- `python manage.py axes_reset_username fulano@dominio.com.br` (desbloqueia login)
 - `pytest`
 - No Windows, chamar `.venv/Scripts/python` (ex.: `.venv/Scripts/python -m
   pytest`, `.venv/Scripts/python manage.py check`): o `python` do PATH aponta

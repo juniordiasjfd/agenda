@@ -3,7 +3,7 @@
 [![CI](https://github.com/juniordiasjfd/agenda/actions/workflows/ci.yml/badge.svg)](https://github.com/juniordiasjfd/agenda/actions/workflows/ci.yml)
 [![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-blue.svg)](#licença)
 
-Sistema interno da Scriba para registrar e visualizar as ausências dos
+Sistema para registrar e visualizar as ausências dos
 colaboradores (férias, banco de horas, licença etc.). Substitui um fluxo
 antigo baseado em HTML offline e planilhas CSV trocadas por e-mail.
 
