@@ -1,2 +1,5 @@
 # Fixtures de CSV: bytes exatos (BOM, CRLF, Windows-1252); o git não converte.
 apps/ausencias/tests/fixtures/*.csv -text
+
+# Scripts de shell rodam no Linux do Render: sempre LF.
+*.sh text eol=lf

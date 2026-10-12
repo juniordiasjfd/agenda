@@ -1,0 +1,75 @@
+# Blueprint do Render: web service + PostgreSQL, mesma região (virginia).
+# Passo a passo e variáveis: docs/deploy.md.
+#
+# Segredos NUNCA aqui: SECRET_KEY é gerada pelo Render, DATABASE_URL vem do
+# banco (connectionString = Internal Database URL) e os de SMTP ficam com
+# sync: false (o Render pede o valor no painel ao criar o Blueprint).
+
+databases:
+  - name: agenda-db
+    databaseName: agenda
+    user: agenda
+    plan: basic-256mb
+    region: virginia
+    postgresMajorVersion: "18"
+    # Sem acesso externo: só o web service (rede privada) conecta. Para
+    # manutenção, usar o Shell do Render ou liberar um IP temporariamente.
+    ipAllowList: []
+
+services:
+  - type: web
+    name: agenda
+    runtime: python
+    plan: starter
+    region: virginia
+    buildCommand: ./build.sh
+    startCommand: gunicorn config.wsgi
+    healthCheckPath: /saude/
+    # Deploy automático a cada push na main, mas só depois que o CI
+    # (GitHub Actions) passar.
+    autoDeployTrigger: checksPass
+    envVars:
+      # --- Gerados/ligados pelo Render ---------------------------------------
+      - key: DATABASE_URL
+        fromDatabase:
+          name: agenda-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+
+      # --- Django --------------------------------------------------------------
+      # ALLOWED_HOSTS/CSRF_TRUSTED_ORIGINS não são necessárias enquanto o
+      # domínio for o *.onrender.com (RENDER_EXTERNAL_HOSTNAME). Com domínio
+      # próprio, acrescentar as duas (ver docs/deploy.md).
+      - key: DEBUG
+        value: "False"
+      - key: HSTS_SECONDS
+        value: "300"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: LOG_LEVEL_DJANGO
+        value: WARNING
+
+      # --- gunicorn ------------------------------------------------------------
+      - key: WEB_CONCURRENCY
+        value: "2"
+      - key: GUNICORN_TIMEOUT
+        value: "30"
+
+      # --- E-mail (SMTP) -------------------------------------------------------
+      - key: EMAIL_BACKEND
+        value: django.core.mail.backends.smtp.EmailBackend
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USE_TLS
+        value: "True"
+      - key: EMAIL_USE_SSL
+        value: "False"
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        sync: false
