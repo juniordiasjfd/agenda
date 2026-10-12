@@ -97,6 +97,17 @@
         <small class="form-hint">Quem não tem ausência em nenhum dia do período.</small>
       </fieldset>
 
+      <fieldset class="col-md-6 col-lg-3">
+        <legend class="form-label">Capacidade em</legend>
+        <div class="input-group">
+          <input type="date" name="capacidade_de" class="form-control" value="{{ valores.capacidade_de }}"
+                 min="2000-01-01" max="2100-12-31" aria-label="Capacidade em: de">
+          <input type="date" name="capacidade_ate" class="form-control" value="{{ valores.capacidade_ate }}"
+                 min="2000-01-01" max="2100-12-31" aria-label="Capacidade em: até">
+        </div>
+        <small class="form-hint">Horas disponíveis dos colaboradores filtrados (8 h por dia útil).</small>
+      </fieldset>
+
       <div class="col-12 d-flex flex-wrap align-items-center gap-2">
         <label class="form-check mb-0 me-auto">
           {# Desmarcada, só o "0" vai na URL; marcada, vale o último valor ("1"). #}
@@ -112,6 +123,12 @@
       </div>
     </form>
   </div>
+</div>
+
+{# Preenchido pelo servidor e atualizado pelo painel.js (textContent). #}
+<div class="alert alert-info{% if not capacidade %} d-none{% endif %}" id="painel-capacidade" aria-live="polite">
+  <div class="fw-bold" data-capacidade-texto>{{ capacidade.texto }}</div>
+  <div class="text-secondary small" data-capacidade-detalhe>{{ capacidade.detalhe }}</div>
 </div>
 
 <div id="painel-avisos" aria-live="polite">

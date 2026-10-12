@@ -23,6 +23,8 @@ def filtros_da_querystring(get):
         presente_de=get.get('presente_de', ''),
         presente_ate=get.get('presente_ate', ''),
         sem_registros=(get.getlist('sem_registros') or [None])[-1],
+        capacidade_de=get.get('capacidade_de', ''),
+        capacidade_ate=get.get('capacidade_ate', ''),
     )
 
 
@@ -48,14 +50,19 @@ class PainelView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         get = self.request.GET
         filtros = filtros_da_querystring(get)
+        # Sem JavaScript a capacidade também aparece (o painel.js a atualiza).
+        capacidade = (
+            painel_service.montar_painel(filtros, timezone.localdate()).capacidade if filtros.capacidade else None
+        )
         departamentos = list(painel_service.departamentos_para_escolha())
         kwargs.update(
             filtros=filtros,
+            capacidade=capacidade,
             departamentos=departamentos,
             rotulo_departamentos=painel_service.rotulo_departamentos(filtros.departamentos, departamentos),
             # Textos como vieram, para o formulário mostrar o que foi digitado.
             valores={campo: get.get(campo, '') for campo in (
-                'q', 'ausente_de', 'ausente_ate', 'presente_de', 'presente_ate',
+                'q', 'ausente_de', 'ausente_ate', 'presente_de', 'presente_ate', 'capacidade_de', 'capacidade_ate',
             )},
         )
         return super().get_context_data(**kwargs)

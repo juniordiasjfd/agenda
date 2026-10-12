@@ -170,3 +170,14 @@ def test_rotulo_departamentos(ti, rh):
     # Id que não existe não conta.
     assert rotulo_departamentos((999999,), departamentos) == 'Todos'
     assert rotulo_departamentos((999999, rh.pk), departamentos) == 'RH'
+
+
+def test_capacidade_aparece_sem_javascript(logado):
+    pagina = html(logado, capacidade_de='2026-03-02', capacidade_ate='2026-03-06')
+
+    assert 'value="2026-03-02"' in pagina
+    assert 'Capacidade disponível: 0 / 0 horas (—)' in pagina
+
+
+def test_sem_filtro_de_capacidade_o_bloco_fica_escondido(logado):
+    assert 'class="alert alert-info d-none" id="painel-capacidade"' in html(logado)

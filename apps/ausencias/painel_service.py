@@ -11,7 +11,7 @@ Aqui ele é expresso em queryset (``_periodos_que_contam`` e ``_cruzando``);
 """
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 
 from django.db.models import Exists, OuterRef, Q
 from django.urls import reverse
@@ -23,6 +23,7 @@ from apps.colaboradores.models import Colaborador, Departamento
 from apps.core.utils import normalizar_nome
 
 TAMANHO_MAXIMO_BUSCA = 150
+HORAS_POR_DIA_UTIL = 8
 
 
 # ---------------------------------------------------------------------------
@@ -47,6 +48,8 @@ class FiltrosPainel:
     - ``sem_registros``: incluir quem não tem nenhum período que conte como
       ausência. Desmarcado, só aparece quem tem pelo menos um (mesmo com
       ``presente``, como no legado).
+    - ``capacidade``: intervalo para calcular a capacidade disponível das
+      pessoas filtradas (não muda quem aparece);
     - ``avisos``: filtros recusados (e ignorados), para mostrar na tela.
     """
     nome: str = ''
@@ -54,11 +57,12 @@ class FiltrosPainel:
     ausente: Intervalo | None = None
     presente: Intervalo | None = None
     sem_registros: bool = True
+    capacidade: Intervalo | None = None
     avisos: list = field(default_factory=list)
 
 
 def ler_filtros(q='', departamentos=(), ausente_de='', ausente_ate='', presente_de='', presente_ate='',
-                sem_registros=None):
+                sem_registros=None, capacidade_de='', capacidade_ate=''):
     """``FiltrosPainel`` a partir dos textos da querystring. Nada aqui
     levanta erro: valor inválido é ignorado e vira aviso.
 
@@ -72,6 +76,7 @@ def ler_filtros(q='', departamentos=(), ausente_de='', ausente_ate='', presente_
         ausente=_ler_intervalo(ausente_de, ausente_ate, 'Ausência em', avisos),
         presente=_ler_intervalo(presente_de, presente_ate, 'Presença em', avisos),
         sem_registros=(sem_registros or '').strip() != '0',
+        capacidade=_ler_intervalo(capacidade_de, capacidade_ate, 'Capacidade em', avisos),
         avisos=avisos,
     )
 
@@ -175,6 +180,91 @@ def colaboradores_filtrados(filtros):
 
 
 # ---------------------------------------------------------------------------
+# Capacidade
+# ---------------------------------------------------------------------------
+def dias_uteis(de, ate):
+    """Dias de segunda a sexta de ``de`` a ``ate`` (inclusivos); 0 se
+    ``ate < de``. Feriados não são descontados."""
+    if ate < de:
+        return 0
+    semanas, resto = divmod((ate - de).days + 1, 7)
+    return semanas * 5 + sum(1 for i in range(resto) if (de + timedelta(days=i)).weekday() < 5)
+
+
+def dias_uteis_ausente(periodos, intervalo):
+    """Dias úteis do ``intervalo`` cobertos por algum dos ``periodos``
+    (objetos com ``inicio`` e ``fim`` inclusivos). Dia coberto por mais de um
+    período conta uma vez só."""
+    recortes = sorted(
+        (max(p.inicio, intervalo.de), min(p.fim, intervalo.ate))
+        for p in periodos
+        if p.inicio <= intervalo.ate and p.fim >= intervalo.de
+    )
+    uteis = 0
+    atual = None
+    for inicio, fim in recortes:
+        if atual and inicio <= atual[1] + timedelta(days=1):
+            atual = (atual[0], max(atual[1], fim))
+            continue
+        if atual:
+            uteis += dias_uteis(*atual)
+        atual = (inicio, fim)
+    if atual:
+        uteis += dias_uteis(*atual)
+    return uteis
+
+
+@dataclass(frozen=True)
+class Capacidade:
+    """Capacidade das pessoas do painel no intervalo: cada pessoa vale
+    ``HORAS_POR_DIA_UTIL`` horas por dia útil; dia útil com ausência que
+    conta não está disponível. ``percentual`` é ``None`` sem horas totais."""
+    intervalo: Intervalo
+    pessoas: int
+    dias_uteis: int
+    total_horas: int
+    disponivel_horas: int
+
+    @property
+    def percentual(self):
+        if not self.total_horas:
+            return None
+        return self.disponivel_horas * 100 / self.total_horas
+
+    @property
+    def texto(self):
+        """Ex.: "Capacidade disponível: 240 / 360 horas (66,7%)"."""
+        percentual = '—' if self.percentual is None else f'{_numero(self.percentual, 1)}%'
+        return (f'Capacidade disponível: {_numero(self.disponivel_horas)} / {_numero(self.total_horas)} horas '
+                f'({percentual})')
+
+    @property
+    def detalhe(self):
+        pessoas = '1 colaborador' if self.pessoas == 1 else f'{_numero(self.pessoas)} colaboradores'
+        dias = '1 dia útil' if self.dias_uteis == 1 else f'{_numero(self.dias_uteis)} dias úteis'
+        return (f'De {self.intervalo.de:%d/%m/%Y} a {self.intervalo.ate:%d/%m/%Y}: {pessoas} × {dias} × '
+                f'{HORAS_POR_DIA_UTIL} h (segunda a sexta; feriados não descontados).')
+
+
+def _numero(valor, casas=0):
+    """Número em pt-BR (milhar com ponto, decimal com vírgula); sem casas
+    decimais quando o valor arredondado é inteiro."""
+    valor = round(valor, casas)
+    if valor == int(valor):
+        casas = 0
+    return f'{valor:,.{casas}f}'.replace(',', '_').replace('.', ',').replace('_', '.')
+
+
+def calcular_capacidade(pessoas, intervalo):
+    """``Capacidade`` das ``pessoas`` (``PessoaPainel`` com os períodos que
+    contam como ausência) no ``intervalo``. Sem queries."""
+    uteis = dias_uteis(intervalo.de, intervalo.ate)
+    total = len(pessoas) * uteis * HORAS_POR_DIA_UTIL
+    ausente = sum(dias_uteis_ausente(pessoa.periodos, intervalo) for pessoa in pessoas) * HORAS_POR_DIA_UTIL
+    return Capacidade(intervalo, len(pessoas), uteis, total, total - ausente)
+
+
+# ---------------------------------------------------------------------------
 # Montagem
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True)
@@ -208,12 +298,14 @@ class Painel:
     tipos: list
     pessoas: list
     avisos: list
+    capacidade: Capacidade | None = None
 
 
 def montar_painel(filtros, hoje):
     """Pessoas filtradas com TODOS os seus períodos que contam como ausência
     (sem recorte pela janela visível: a navegação é no cliente), e a legenda
-    (tipos ativos + tipos presentes nos períodos, mesmo inativos).
+    (tipos ativos + tipos presentes nos períodos, mesmo inativos). Com o
+    filtro ``capacidade``, calcula a capacidade das pessoas filtradas.
     Três queries, independentemente do volume."""
     # Ordem em Python: a collation do banco pode ignorar espaços ("ana b" x
     # "anab"); nome_normalizado já está sem acento e em minúsculas.
@@ -246,7 +338,26 @@ def montar_painel(filtros, hoje):
         TipoPainel(tipo.pk, tipo.nome, tipo.cor)
         for tipo in TipoAusencia.objects.filter(Q(ativo=True) | Q(pk__in=tipos_presentes)).order_by('ordem', 'nome')
     ]
-    return Painel(hoje=hoje, tipos=tipos, pessoas=pessoas, avisos=list(filtros.avisos))
+    capacidade = calcular_capacidade(pessoas, filtros.capacidade) if filtros.capacidade else None
+    return Painel(hoje=hoje, tipos=tipos, pessoas=pessoas, avisos=list(filtros.avisos), capacidade=capacidade)
+
+
+def capacidade_para_json(capacidade):
+    """Capacidade do endpoint (``None`` sem o filtro). ``texto`` e
+    ``detalhe`` já vêm formatados: o painel.js só os mostra."""
+    if capacidade is None:
+        return None
+    return {
+        'de': capacidade.intervalo.de.isoformat(),
+        'ate': capacidade.intervalo.ate.isoformat(),
+        'pessoas': capacidade.pessoas,
+        'dias_uteis': capacidade.dias_uteis,
+        'total_horas': capacidade.total_horas,
+        'disponivel_horas': capacidade.disponivel_horas,
+        'percentual': None if capacidade.percentual is None else round(capacidade.percentual, 1),
+        'texto': capacidade.texto,
+        'detalhe': capacidade.detalhe,
+    }
 
 
 def painel_para_json(painel):
@@ -275,4 +386,5 @@ def painel_para_json(painel):
             for pessoa in painel.pessoas
         ],
         'avisos': painel.avisos,
+        'capacidade': capacidade_para_json(painel.capacidade),
     }

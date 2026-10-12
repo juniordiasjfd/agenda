@@ -354,3 +354,100 @@ def test_consulta_equivale_a_cruzam_e_conta_como_ausencia(ferias, planejado, can
 
         assert ausentes == esperado, intervalo
         assert presentes == ativos - esperado, intervalo
+
+
+# ---------------------------------------------------------------------------
+# Capacidade
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize('de, ate, esperado', [
+    ('02/03/2026', '06/03/2026', 5),   # segunda a sexta
+    ('07/03/2026', '08/03/2026', 0),   # sábado e domingo
+    ('01/03/2026', '31/03/2026', 22),
+    ('06/03/2026', '09/03/2026', 2),   # sexta a segunda
+    ('10/03/2026', '09/03/2026', 0),
+])
+def test_dias_uteis(de, ate, esperado):
+    assert painel_service.dias_uteis(d(de), d(ate)) == esperado
+
+
+def test_dias_uteis_confere_com_a_contagem_dia_a_dia():
+    sorteio = random.Random(7)
+    for _ in range(200):
+        de = date(2026, 1, 1) + timedelta(days=sorteio.randrange(400))
+        ate = de + timedelta(days=sorteio.randrange(40))
+        contagem = sum(1 for i in range((ate - de).days + 1) if (de + timedelta(days=i)).weekday() < 5)
+        assert painel_service.dias_uteis(de, ate) == contagem
+
+
+def test_sem_filtro_de_capacidade_nao_calcula():
+    assert montar_painel(ler_filtros(), HOJE).capacidade is None
+
+
+def test_capacidade_filtro_le_intervalo_e_avisa_data_invalida():
+    assert ler_filtros(capacidade_de='2026-03-06', capacidade_ate='2026-03-02').capacidade == Intervalo(
+        d('02/03/2026'), d('06/03/2026'))
+
+    filtros = ler_filtros(capacidade_de='ontem')
+    assert filtros.capacidade is None
+    assert '"Capacidade em" foi ignorado' in filtros.avisos[0]
+
+
+def test_capacidade_desconta_dias_uteis_ausentes(ferias, cancelado, gravar_ausencia):
+    ana = Colaborador.objects.create(nome='Ana')
+    bia = Colaborador.objects.create(nome='Bia')
+    Colaborador.objects.create(nome='Caio')
+    # Sexta a terça: na semana de 02 a 06/03 só a sexta (06) é dia útil dentro.
+    gravar_ausencia(ana, ferias, ('06/03/2026', '10/03/2026'))
+    # Dois períodos que se cruzam no mesmo dia contam uma vez.
+    gravar_ausencia(bia, ferias, ('02/03/2026', '03/03/2026'))
+    gravar_ausencia(bia, ferias, ('03/03/2026', '03/03/2026'))
+    # Situação que não conta como ausência não desconta.
+    gravar_ausencia(bia, ferias, ('05/03/2026', '05/03/2026', cancelado))
+
+    capacidade = montar_painel(ler_filtros(capacidade_de='2026-03-02', capacidade_ate='2026-03-08'), HOJE).capacidade
+
+    assert (capacidade.pessoas, capacidade.dias_uteis) == (3, 5)
+    assert capacidade.total_horas == 3 * 5 * 8
+    assert capacidade.disponivel_horas == 120 - 8 - 16
+    assert capacidade.texto == 'Capacidade disponível: 96 / 120 horas (80%)'
+    assert capacidade.detalhe.startswith('De 02/03/2026 a 08/03/2026: 3 colaboradores × 5 dias úteis × 8 h')
+
+
+def test_capacidade_considera_os_demais_filtros(ti, ferias, gravar_ausencia):
+    ana = Colaborador.objects.create(nome='Ana', departamento=ti)
+    Colaborador.objects.create(nome='Bia')
+    gravar_ausencia(ana, ferias, ('02/03/2026', '02/03/2026'))
+
+    capacidade = montar_painel(ler_filtros(
+        departamentos=[str(ti.pk)], capacidade_de='2026-03-02', capacidade_ate='2026-03-04',
+    ), HOJE).capacidade
+
+    assert (capacidade.pessoas, capacidade.total_horas, capacidade.disponivel_horas) == (1, 24, 16)
+    assert capacidade.texto == 'Capacidade disponível: 16 / 24 horas (66,7%)'
+
+
+def test_capacidade_ignora_ausencia_excluida(ferias, gravar_ausencia):
+    ana = Colaborador.objects.create(nome='Ana')
+    excluir(gravar_ausencia(ana, ferias, ('02/03/2026', '06/03/2026')))
+
+    capacidade = montar_painel(ler_filtros(capacidade_de='2026-03-02', capacidade_ate='2026-03-06'), HOJE).capacidade
+
+    assert capacidade.disponivel_horas == capacidade.total_horas == 40
+
+
+def test_capacidade_sem_horas_totais():
+    Colaborador.objects.create(nome='Ana')
+
+    capacidade = montar_painel(ler_filtros(capacidade_de='2026-03-07', capacidade_ate='2026-03-08'), HOJE).capacidade
+
+    assert capacidade.percentual is None
+    assert capacidade.texto == 'Capacidade disponível: 0 / 0 horas (—)'
+
+
+def test_capacidade_formata_milhar():
+    for i in range(30):
+        Colaborador.objects.create(nome=f'P {i}')
+
+    capacidade = montar_painel(ler_filtros(capacidade_de='2026-03-02', capacidade_ate='2026-03-13'), HOJE).capacidade
+
+    assert capacidade.texto == 'Capacidade disponível: 2.400 / 2.400 horas (100%)'

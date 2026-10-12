@@ -40,6 +40,8 @@
   var RE_COR = /^#[0-9a-fA-F]{6}$/;
   var ESPERA_DIGITACAO_MS = 300;
   var CHAVE_ESCALA = 'agenda-painel-escala';
+  var CAMPOS_DE_DATA = ['ausente_de', 'ausente_ate', 'presente_de', 'presente_ate', 'capacidade_de',
+    'capacidade_ate'];
 
   var urlDados = formulario.getAttribute('data-url-dados');
 
@@ -56,6 +58,7 @@
     intervalo: parte('[data-intervalo]'),
     telaCheia: parte('[data-tela-cheia]'),
     avisos: document.getElementById('painel-avisos'),
+    capacidade: document.getElementById('painel-capacidade'),
   };
 
   var estado = {
@@ -126,7 +129,7 @@
     formulario.querySelectorAll('input[name="departamento"]:checked').forEach(function (caixa) {
       parametros.append('departamento', caixa.value);
     });
-    ['ausente_de', 'ausente_ate', 'presente_de', 'presente_ate'].forEach(function (nome) {
+    CAMPOS_DE_DATA.forEach(function (nome) {
       var valor = formulario.elements[nome].value;
       if (valor) parametros.append(nome, valor);
     });
@@ -196,6 +199,7 @@
     });
     mostrarErro('');
     mostrarAvisos(dados.avisos || []);
+    mostrarCapacidade(dados.capacidade);
     desenharLegenda(dados.tipos || []);
     desenhar();
   }
@@ -213,6 +217,14 @@
   function mostrarAvisos(avisos) {
     el.avisos.replaceChildren();
     avisos.forEach(function (aviso) { el.avisos.appendChild(criar('div', 'alert alert-warning', aviso)); });
+  }
+
+  // A capacidade vem calculada e formatada do servidor; aqui só aparece.
+  function mostrarCapacidade(capacidade) {
+    if (!el.capacidade) return;
+    el.capacidade.querySelector('[data-capacidade-texto]').textContent = capacidade ? capacidade.texto : '';
+    el.capacidade.querySelector('[data-capacidade-detalhe]').textContent = capacidade ? capacidade.detalhe : '';
+    el.capacidade.classList.toggle('d-none', !capacidade);
   }
 
   function desenharLegenda(tipos) {
@@ -555,7 +567,7 @@
   // -------------------------------------------------------------------------
   function limparFiltros() {
     formulario.elements.q.value = '';
-    ['ausente_de', 'ausente_ate', 'presente_de', 'presente_ate'].forEach(function (nome) {
+    CAMPOS_DE_DATA.forEach(function (nome) {
       formulario.elements[nome].value = '';
     });
     formulario.querySelectorAll('input[name="departamento"]').forEach(function (caixa) { caixa.checked = false; });

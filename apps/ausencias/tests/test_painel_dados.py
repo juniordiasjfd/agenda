@@ -43,7 +43,8 @@ def test_formato_da_resposta(logado, colaborador, ferias, aprovado, gravar_ausen
 
     corpo = dados(logado)
 
-    assert set(corpo) == {'hoje', 'tipos', 'pessoas', 'avisos'}
+    assert set(corpo) == {'hoje', 'tipos', 'pessoas', 'avisos', 'capacidade'}
+    assert corpo['capacidade'] is None
     assert corpo['avisos'] == []
     assert {'id': ferias.pk, 'nome': 'Férias', 'cor': ferias.cor} in corpo['tipos']
     assert corpo['pessoas'] == [{
@@ -216,3 +217,22 @@ def test_numero_de_queries_nao_cresce(logado, ferias, gravar_ausencia):
                         ('20/03/2026', '21/03/2026'))
 
     assert _contar(logado) == poucas
+
+
+def test_capacidade_no_json(logado, colaborador, ferias, gravar_ausencia):
+    gravar_ausencia(colaborador, ferias, ('02/03/2026', '03/03/2026'))
+
+    corpo = dados(logado, capacidade_de='2026-03-02', capacidade_ate='2026-03-06')
+
+    assert corpo['capacidade'] == {
+        'de': '2026-03-02',
+        'ate': '2026-03-06',
+        'pessoas': 1,
+        'dias_uteis': 5,
+        'total_horas': 40,
+        'disponivel_horas': 24,
+        'percentual': 60.0,
+        'texto': 'Capacidade disponível: 24 / 40 horas (60%)',
+        'detalhe': 'De 02/03/2026 a 06/03/2026: 1 colaborador × 5 dias úteis × 8 h '
+                   '(segunda a sexta; feriados não descontados).',
+    }
