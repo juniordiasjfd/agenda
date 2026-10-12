@@ -6,6 +6,9 @@ offline + CSV por e-mail. Os arquivos do fluxo antigo estão em `legado/` e são
 a referência das regras de negócio (validações, CSV, Gantt). Exemplos das
 convenções de código da Scriba (AuditoriaBase, *_service.py, bloco de e-mail
 do settings) estão em `legado/referencias/`: reproduza esses padrões.
+`legado/` existe só na máquina local, FORA do Git (`.gitignore`): tem dados
+pessoais (nomes reais em `funcionarios.js`). Nunca versionar; testes usam
+fixtures sintéticas com nomes fictícios.
 
 ## Stack
 - Python + Django, PostgreSQL. Usar as mesmas versões dos demais projetos
@@ -272,9 +275,38 @@ do settings) estão em `legado/referencias/`: reproduza esses padrões.
   gravações podem ter o mesmo instante): usar tempo controlado.
 
 ## Deploy (Render)
-- gunicorn, `build.sh` (install, collectstatic, migrate), DATABASE_URL,
-  SECRET_KEY, DEBUG, ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS e as variáveis de
-  e-mail.
+- Runbook completo: `docs/deploy.md`. Infra declarada em `render.yaml`
+  (Blueprint): runtime Python nativo (sem Docker), web Starter + Postgres 18
+  basic-256mb, ambos em virginia. Sem homologação; domínio `*.onrender.com`.
+- Banco pela Internal Database URL (`fromDatabase` → `DATABASE_URL`), mesma
+  região, sem acesso externo. `conn_max_age=60`, `conn_health_checks=True`;
+  SSL só se vier na URL.
+- `build.sh`: pip install, collectstatic, migrate (no build, por decisão).
+  Migrations precisam ser compatíveis com o código anterior. Start:
+  `gunicorn config.wsgi` com `gunicorn.conf.py` (PORT, WEB_CONCURRENCY,
+  GUNICORN_TIMEOUT). Python fixado em `.python-version`.
+- Healthcheck em duas rotas: `/saude/` (liveness, `SaudeMiddleware` no TOPO
+  do MIDDLEWARE, antes da validação de host, sem sessão nem banco; é o
+  `healthCheckPath`) e `/saude/banco/` (readiness, `SELECT 1`, 503 sem
+  detalhe).
+- HTTPS: o Render redireciona; `SECURE_SSL_REDIRECT=False` de propósito,
+  `SECURE_PROXY_SSL_HEADER` com X-Forwarded-Proto, cookies seguros, HSTS
+  por `HSTS_SECONDS` (começa em 300). W008/W005/W021 silenciados com
+  justificativa no settings.
+- `ALLOWED_HOSTS`/`CSRF_TRUSTED_ORIGINS` por variável + `RENDER_EXTERNAL_HOSTNAME`
+  automático. `SECRET_KEY` obrigatória sempre (`generateValue` no Render).
+  Segredos só no painel do Render (SMTP com `sync: false`).
+- Logs no stdout, níveis por `LOG_LEVEL`, `LOG_LEVEL_DJANGO`, `LOG_LEVEL_ROOT`.
+- Limite de login: django-axes, bloqueio do PAR e-mail + IP
+  (`AXES_FAILURE_LIMIT`, `AXES_COOLOFF_MINUTES`); IP real atrás do proxy do
+  Render pelo X-Forwarded-For, contando `PROXY_COUNT` a partir da direita
+  (`apps/usuarios/limite_login.py`); `AXES_USERNAME_FORM_FIELD='username'`
+  (o padrão do axes seria `email` e quebraria o bloqueio). Página de
+  bloqueio em pt-BR (429). `authenticate()` sempre com `request`.
+- CI (GitHub Actions, Postgres 18): pytest, check, makemigrations --check,
+  check --deploy --fail-level WARNING. O Render só faz deploy após o CI
+  passar (`autoDeployTrigger: checksPass`).
+- `manage.py testar_email <endereco>`: diagnóstico do SMTP com o erro real.
 
 ## Etapas
 1. Projeto base, settings (incl. e-mail), User customizado (e-mail), login,
@@ -291,7 +323,9 @@ do settings) estão em `legado/referencias/`: reproduza esses padrões.
 8. Deploy no Render.
 
 ## Comandos úteis
-- `python manage.py carregar_colaboradores legado/referencias/funcionarios.js` (`--dry-run` para simular)
+- `python manage.py carregar_colaboradores legado/referencias/funcionarios.js` (`--dry-run` para simular; arquivo só local, em produção ver `docs/deploy.md`)
+- `python manage.py testar_email voce@scriba.com.br`
+- `python manage.py axes_reset_username fulano@scriba.com.br` (desbloqueia login)
 - `pytest`
 - No Windows, chamar `.venv/Scripts/python` (ex.: `.venv/Scripts/python -m
   pytest`, `.venv/Scripts/python manage.py check`): o `python` do PATH aponta
