@@ -1,5 +1,6 @@
 import pytest
 from django.contrib.auth import SESSION_KEY, authenticate
+from django.test import RequestFactory
 from django.urls import reverse
 
 pytestmark = pytest.mark.django_db
@@ -92,7 +93,9 @@ def test_inativo_nunca_fica_autenticado(client, request, fixture, senha):
     usuario = request.getfixturevalue(fixture)
 
     # O backend devolve o inativo no authenticate() (para a mensagem)...
-    assert authenticate(username=usuario.email, password=senha) == usuario
+    # (O backend do django-axes exige o request no authenticate().)
+    request = RequestFactory().post(URL_LOGIN)
+    assert authenticate(request, username=usuario.email, password=senha) == usuario
     # ...mas o login não acontece e a home continua fechada.
     _entrar(client, usuario.email, senha)
     assert SESSION_KEY not in client.session

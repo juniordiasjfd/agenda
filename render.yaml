@@ -50,6 +50,16 @@ services:
       - key: LOG_LEVEL_DJANGO
         value: WARNING
 
+      # --- Limite de tentativas de login (django-axes) -------------------------
+      - key: AXES_FAILURE_LIMIT
+        value: "5"
+      - key: AXES_COOLOFF_MINUTES
+        value: "15"
+      # Proxies que acrescentam IP ao X-Forwarded-For (Render: 1). Conferir no
+      # primeiro deploy (docs/deploy.md).
+      - key: PROXY_COUNT
+        value: "1"
+
       # --- gunicorn ------------------------------------------------------------
       - key: WEB_CONCURRENCY
         value: "2"

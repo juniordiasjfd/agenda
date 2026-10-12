@@ -1,0 +1,23 @@
+{% extends "base_public.html" %}
+
+{% block title %}Acesso bloqueado temporariamente — Agenda{% endblock %}
+
+{% block content %}
+<div class="text-center">
+  <div class="mb-3 text-warning fs-1"><i class="fa-solid fa-lock"></i></div>
+  <h2 class="h2 mb-3">Muitas tentativas de login</h2>
+  <p class="text-secondary mb-0">
+    Por segurança, depois de {{ tentativas }} tentativas sem sucesso, o login
+    com este e-mail a partir desta conexão ficou bloqueado por
+    {{ minutos }} minuto{{ minutos|pluralize }}. Aguarde e tente de novo, ou
+    redefina sua senha.
+  </p>
+</div>
+{% endblock %}
+
+{% block below_card %}
+<div class="text-center text-secondary mt-3">
+  <a href="{% url 'usuarios:password_reset' %}">Esqueci minha senha</a>
+  · <a href="{% url 'usuarios:login' %}">Voltar para o login</a>
+</div>
+{% endblock %}

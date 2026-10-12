@@ -13,6 +13,7 @@ Toda configuração sensível ou que varia por ambiente vem de variáveis de
 ambiente (python-dotenv carrega o .env em dev). Ver .env.example.
 """
 
+from datetime import timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
@@ -127,6 +128,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    'axes',
+
     'apps.core',
     'apps.usuarios',
     'apps.colaboradores',
@@ -144,6 +147,9 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Último da lista, como pede a documentação do django-axes: transforma o
+    # bloqueio detectado no login na página de "muitas tentativas".
+    'axes.middleware.AxesMiddleware',
 ]
 
 # Estáticos em produção: whitenoise serve STATIC_ROOT direto do Django, sem
@@ -268,7 +274,35 @@ AUTH_USER_MODEL = 'usuarios.User'
 # Backend que deixa o authenticate() devolver usuários inativos (para o login
 # mostrar "aguardando aprovação" x "desativado"), mas nunca mantém sessão de
 # usuário inativo. Ver apps/usuarios/backends.py.
-AUTHENTICATION_BACKENDS = ['apps.usuarios.backends.EmailBackend']
+# O do django-axes vem antes: recusa a tentativa enquanto o par e-mail + IP
+# estiver bloqueado (exige `request` no authenticate()).
+AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesStandaloneBackend',
+    'apps.usuarios.backends.EmailBackend',
+]
+
+# Limite de tentativas de login (django-axes). Vale para o login da Agenda e
+# o do /admin/.
+# - Bloqueia o PAR e-mail + IP: um e-mail bloqueado não afeta os demais, e
+#   ninguém tranca a conta de outra pessoa a partir de outro IP.
+# - O IP real vem do X-Forwarded-For do proxy do Render (ver
+#   apps/usuarios/limite_login.py e PROXY_COUNT).
+# - Login certo zera a contagem. O administrador desbloqueia antes do prazo
+#   em /admin/ (Axes > Tentativas de acesso) ou com
+#   `manage.py axes_reset_username <email>`.
+AXES_FAILURE_LIMIT = int(os.getenv('AXES_FAILURE_LIMIT') or 5)
+AXES_COOLOFF_TIME = timedelta(minutes=int(os.getenv('AXES_COOLOFF_MINUTES') or 15))
+AXES_LOCKOUT_PARAMETERS = [['username', 'ip_address']]
+AXES_RESET_ON_SUCCESS = True
+# Nome do campo no AuthenticationForm (o padrão do axes seria o USERNAME_FIELD
+# do User, 'email', e o backend do axes não acharia o e-mail digitado).
+AXES_USERNAME_FORM_FIELD = 'username'
+AXES_USERNAME_CALLABLE = 'apps.usuarios.limite_login.email_da_tentativa'
+AXES_CLIENT_IP_CALLABLE = 'apps.usuarios.limite_login.ip_do_cliente'
+AXES_LOCKOUT_CALLABLE = 'apps.usuarios.limite_login.resposta_bloqueio'
+# Quantos proxies confiáveis acrescentam o IP de quem os chamou ao
+# X-Forwarded-For. No Render, 1 (o balanceador). 0 = usar REMOTE_ADDR.
+PROXY_COUNT = int(os.getenv('PROXY_COUNT') or 1)
 
 LOGIN_URL = 'usuarios:login'
 # Página inicial depois do login: o painel de ausências.

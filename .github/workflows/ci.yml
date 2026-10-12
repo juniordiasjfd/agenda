@@ -1,0 +1,68 @@
+# CI da Agenda. O Render só faz deploy automático depois que este workflow
+# passa (autoDeployTrigger: checksPass no render.yaml).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        # Mesma versão principal do dev e do banco no Render.
+        image: postgres:18
+        env:
+          POSTGRES_USER: agenda
+          POSTGRES_PASSWORD: agenda
+          POSTGRES_DB: agenda
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U agenda"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Valores só de CI: banco descartável e chave sem uso fora daqui.
+      DATABASE_URL: postgres://agenda:agenda@localhost:5432/agenda
+      SECRET_KEY: ci-chave-sem-uso-real-0123456789-abcdefghijklmnopqrstuvwxyz-ABCDEFG
+      DEBUG: "True"
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+          cache: pip
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: manage.py check
+        run: python manage.py check
+
+      - name: Migrations em dia
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: check --deploy (como em produção)
+        env:
+          DEBUG: "False"
+          ALLOWED_HOSTS: agenda.onrender.com
+        run: python manage.py check --deploy --fail-level WARNING
+
+      - name: pytest
+        run: pytest -q

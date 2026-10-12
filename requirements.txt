@@ -1,6 +1,7 @@
 asgiref==3.12.1
 colorama==0.4.6
 dj-database-url==3.1.2
+django-axes==8.3.1
 Django==5.2.18
 gunicorn==26.2.0
 iniconfig==2.3.1
