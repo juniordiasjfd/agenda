@@ -61,44 +61,60 @@ if not SECRET_KEY:
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG') == 'True'
 
-_allowed_hosts_env = os.getenv('ALLOWED_HOSTS')
-if _allowed_hosts_env:
-    ALLOWED_HOSTS = _lista_do_ambiente(_allowed_hosts_env)
-elif DEBUG:
-    # Default só em desenvolvimento — evita exigir a variável em todo
-    # `runserver` local.
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
-elif TESTING:
-    # O test runner acrescenta 'testserver' por conta própria.
-    ALLOWED_HOSTS = []
-else:
-    raise ImproperlyConfigured(
-        "ALLOWED_HOSTS não está definida (e DEBUG não é True). Defina a "
-        "variável de ambiente ALLOWED_HOSTS com uma lista separada por "
-        "vírgula (ex.: 'agenda.onrender.com' — ver .env.example)."
-    )
+# Hostname público que o Render injeta sozinho em todo Web Service (ex.:
+# 'agenda.onrender.com'). Entra em ALLOWED_HOSTS e CSRF_TRUSTED_ORIGINS sem
+# precisar repeti-lo nas variáveis.
+RENDER_EXTERNAL_HOSTNAME = os.getenv('RENDER_EXTERNAL_HOSTNAME', '').strip()
+
+ALLOWED_HOSTS = _lista_do_ambiente(os.getenv('ALLOWED_HOSTS'))
+if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+if not ALLOWED_HOSTS:
+    if DEBUG:
+        # Default só em desenvolvimento — evita exigir a variável em todo
+        # `runserver` local.
+        ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+    elif not TESTING:
+        # (Nos testes fica vazia: o test runner acrescenta 'testserver'.)
+        raise ImproperlyConfigured(
+            "ALLOWED_HOSTS não está definida (e DEBUG não é True). Defina a "
+            "variável de ambiente ALLOWED_HOSTS com uma lista separada por "
+            "vírgula (ex.: 'agenda.onrender.com' — ver .env.example) ou rode "
+            "no Render, que injeta RENDER_EXTERNAL_HOSTNAME."
+        )
 
 # Origens confiáveis para POST com CSRF atrás do proxy HTTPS do Render. Cada
 # item é uma origem completa (esquema + host), ex.: 'https://agenda.onrender.com'.
 CSRF_TRUSTED_ORIGINS = _lista_do_ambiente(os.getenv('CSRF_TRUSTED_ORIGINS', ''))
+if RENDER_EXTERNAL_HOSTNAME:
+    _origem_render = f'https://{RENDER_EXTERNAL_HOSTNAME}'
+    if _origem_render not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(_origem_render)
 
 # ---------------------------------------------------------------------------
 # Modo produção: proxy HTTPS do Render, cookies seguros, HSTS. Só quando
-# DEBUG=False e fora da suíte automatizada — com SECURE_SSL_REDIRECT o test
-# client (que não usa HTTPS) receberia 301 em toda requisição.
-# SECURE_SSL_REDIRECT e os cookies seguros podem ser desligados por variável
-# (ex.: testar localmente com DEBUG=False sem HTTPS).
+# DEBUG=False e fora da suíte automatizada (os testes destes settings rodam em
+# subprocesso: apps/core/tests/test_settings_producao.py).
+# Os cookies seguros podem ser desligados por variável (ex.: testar
+# localmente com DEBUG=False sem HTTPS).
 # ---------------------------------------------------------------------------
 if not DEBUG and not TESTING:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    SECURE_SSL_REDIRECT = _bool_do_ambiente('SECURE_SSL_REDIRECT', True)
+    # O Render já redireciona HTTP -> HTTPS na borda; o Django não repete.
+    SECURE_SSL_REDIRECT = False
     SESSION_COOKIE_SECURE = _bool_do_ambiente('SECURE_COOKIES', True)
     CSRF_COOKIE_SECURE = SESSION_COOKIE_SECURE
-    # Valor inicial baixo (1h) — subir depois de validar o SSL/proxy em
-    # produção; nunca travar o domínio com HSTS agressivo antes disso.
-    SECURE_HSTS_SECONDS = 3600
+    # Valor inicial baixo (5 min) — subir por variável depois de validar o
+    # HTTPS em produção; nunca travar o domínio com HSTS agressivo antes disso.
+    SECURE_HSTS_SECONDS = int(os.getenv('HSTS_SECONDS') or 300)
     SECURE_HSTS_INCLUDE_SUBDOMAINS = False
     SECURE_HSTS_PRELOAD = False
+
+# Avisos do `check --deploy` desligados por decisão consciente:
+# - W008 (SECURE_SSL_REDIRECT desligado): o Render já redireciona para HTTPS;
+# - W005/W021 (HSTS includeSubDomains/preload): o domínio *.onrender.com não é
+#   nosso; reavaliar só com domínio próprio (ver docs/deploy.md).
+SILENCED_SYSTEM_CHECKS = ['security.W008', 'security.W005', 'security.W021']
 
 
 # Application definition
@@ -118,6 +134,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # Primeiro da lista: responde /saude/ antes da validação de host (o
+    # healthcheck do Render não usa o hostname público), da sessão e do banco.
+    'apps.core.middleware.SaudeMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -163,7 +182,10 @@ WSGI_APPLICATION = 'config.wsgi.application'
 #
 # Sempre PostgreSQL, via DATABASE_URL (dj-database-url) — em dev, nos testes e
 # no Render. Sem fallback para SQLite. O código não força SSL: quando for
-# preciso, o sslmode entra na própria DATABASE_URL.
+# preciso, o sslmode entra na própria DATABASE_URL (no Render, a Internal
+# Database URL, na mesma região, dispensa SSL).
+# Conexão reaproveitada por até 60 s, testada antes de cada reuso (o Postgres
+# pode reiniciar numa manutenção sem derrubar os workers).
 _database_url = os.getenv('DATABASE_URL')
 if not _database_url:
     raise ImproperlyConfigured(
@@ -173,7 +195,7 @@ if not _database_url:
 DATABASES = {
     'default': dj_database_url.parse(
         _database_url,
-        conn_max_age=600,
+        conn_max_age=60,
         conn_health_checks=True,
     )
 }
@@ -289,13 +311,16 @@ EMAIL_TIMEOUT = 10
 # Logging — tudo para o stdout, que é o que o Render coleta. Sem isso, com
 # DEBUG=False o traceback do erro 500 iria só para o mail_admins (ADMINS
 # vazio) e o logger.info/exception dos apps se perderia.
-# Só fora da suíte automatizada. Os níveis são constantes — para mudar, edite
-# aqui.
+# Só fora da suíte automatizada. Níveis por variável (DEBUG, INFO, WARNING,
+# ERROR).
 # ---------------------------------------------------------------------------
 if not TESTING:
-    LOG_LEVEL_APPS = 'INFO'      # apps.* (getLogger(__name__)): rastro de negócio
-    LOG_LEVEL_DJANGO = 'WARNING'  # django e django.request (erro 500 = ERROR)
-    LOG_LEVEL_ROOT = 'WARNING'    # bibliotecas de terceiros: só avisos e erros
+    # apps.* (getLogger(__name__)): rastro de negócio
+    LOG_LEVEL_APPS = (os.getenv('LOG_LEVEL') or 'INFO').strip().upper()
+    # django e django.request (erro 500 = ERROR)
+    LOG_LEVEL_DJANGO = (os.getenv('LOG_LEVEL_DJANGO') or 'WARNING').strip().upper()
+    # bibliotecas de terceiros: só avisos e erros
+    LOG_LEVEL_ROOT = (os.getenv('LOG_LEVEL_ROOT') or 'WARNING').strip().upper()
 
     LOGGING = {
         'version': 1,
