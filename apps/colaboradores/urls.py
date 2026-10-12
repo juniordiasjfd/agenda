@@ -9,6 +9,11 @@ urlpatterns = [
     path('administracao/colaboradores/', views.ColaboradoresView.as_view(), name='colaboradores'),
     path('administracao/colaboradores/novo/', views.ColaboradorCriarView.as_view(), name='colaborador_criar'),
     path(
+        'administracao/colaboradores/importar/',
+        views.ImportarColaboradoresView.as_view(),
+        name='colaboradores_importar',
+    ),
+    path(
         'administracao/colaboradores/<int:pk>/editar/',
         views.ColaboradorEditarView.as_view(),
         name='colaborador_editar',

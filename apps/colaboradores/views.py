@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import messages
 from django.http import Http404, HttpResponseBadRequest
 from django.shortcuts import redirect, render
@@ -7,7 +8,12 @@ from django.views import View
 from django.views.generic import CreateView, ListView, UpdateView
 
 from apps.colaboradores import colaboradores_service
-from apps.colaboradores.forms import ColaboradorForm, DepartamentoForm, FiltroColaboradoresForm
+from apps.colaboradores.forms import (
+    ColaboradorForm,
+    DepartamentoForm,
+    FiltroColaboradoresForm,
+    ImportarColaboradoresForm,
+)
 from apps.colaboradores.models import Colaborador, Departamento
 from apps.core.permissions import AdministradorMixin
 
@@ -153,3 +159,42 @@ class AlterarAtivoView(AdministradorMixin, View):
                                            require_https=request.is_secure()):
             return redirect(destino)
         return redirect('colaboradores:colaboradores')
+
+
+class ImportarColaboradoresView(AdministradorMixin, View):
+    """CSV ``Colaborador;Departamento``: simula (padrão) ou grava e mostra o
+    resumo na mesma página. Depois de simular, o formulário volta com a
+    simulação desmarcada (próximo passo: gravar)."""
+    template_name = 'colaboradores/importar.html'
+
+    def get(self, request):
+        return self.renderizar(ImportarColaboradoresForm())
+
+    def post(self, request):
+        form = ImportarColaboradoresForm(request.POST, request.FILES)
+        if not form.is_valid():
+            return self.renderizar(form)
+        try:
+            linhas = colaboradores_service.ler_csv_colaboradores(form.cleaned_data['arquivo'])
+        except colaboradores_service.ArquivoColaboradoresInvalido as erro:
+            form.add_error('arquivo', str(erro))
+            return self.renderizar(form)
+        resultado = colaboradores_service.importar_colaboradores(
+            linhas, request.user, simular=form.cleaned_data['simular'],
+        )
+        if not resultado.simulado:
+            messages.success(
+                request,
+                f'Importação concluída: {len(resultado.criados)} colaborador(es) criado(s) e '
+                f'{len(resultado.atualizados)} atualizado(s).',
+            )
+        return self.renderizar(ImportarColaboradoresForm(initial={'simular': not resultado.simulado}), resultado)
+
+    def renderizar(self, form, resultado=None):
+        return render(self.request, self.template_name, {
+            'form': form,
+            'resultado': resultado,
+            'max_registros': settings.CSV_IMPORTACAO_MAX_REGISTROS,
+            'max_megas': f'{settings.CSV_IMPORTACAO_MAX_BYTES / (1024 * 1024):g}',
+            'active_nav': 'colaboradores',
+        })

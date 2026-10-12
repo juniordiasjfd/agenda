@@ -1,0 +1,28 @@
+{# Tabela de um grupo do resumo da importação de colaboradores (ItemImportacao). #}
+<div class="card-body border-top">
+  <h4 class="mb-2">{{ titulo }} ({{ itens|length }})</h4>
+  <div class="table-responsive">
+    <table class="table table-sm table-vcenter card-table">
+      <thead>
+        <tr>
+          <th class="w-1">Linha</th>
+          <th>Colaborador</th>
+          {% if com_anterior %}<th>Departamento anterior</th>{% endif %}
+          <th>Departamento</th>
+          {% if com_motivo %}<th>Observação</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in itens %}
+          <tr>
+            <td class="text-secondary">{{ item.linha }}</td>
+            <td>{{ item.nome|default:"—" }}</td>
+            {% if com_anterior %}<td>{{ item.anterior|default:"Sem departamento" }}</td>{% endif %}
+            <td>{{ item.departamento|default:"Sem departamento" }}</td>
+            {% if com_motivo %}<td class="text-secondary">{{ item.motivo }}</td>{% endif %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Importar colaboradores — Agenda{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="page-pretitle"><a href="{% url 'colaboradores:colaboradores' %}">Colaboradores</a></div>
+    <h2 class="page-title">Importar colaboradores</h2>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card">
+      <form method="post" enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+        <div class="card-body">
+          <p>
+            Envie um arquivo com as colunas <span class="font-monospace">Colaborador</span> e
+            <span class="font-monospace">Departamento</span> (ex.: <span class="font-monospace">Colaborador;Departamento</span>).
+            Departamento vazio ou ausente = <strong>Sem departamento</strong>.
+          </p>
+          <ul class="mb-3">
+            <li>Colaborador novo é criado ativo; departamento que não existe é criado.</li>
+            <li>Colaborador que já existe tem o departamento trocado pelo do arquivo; departamento vazio mantém o atual.</li>
+            <li>Nomes são comparados sem considerar acentos, maiúsculas e espaços duplos; repetidos no arquivo: vale a primeira linha.</li>
+          </ul>
+          {% include "includes/_campo.html" with campo=form.arquivo %}
+          <small class="form-hint mb-3">
+            Até {{ max_megas }} MB e {{ max_registros }} registros, extensão .csv ou .txt. Separador ; ou , e codificação
+            UTF-8 ou Windows-1252 são detectados.
+          </small>
+          <div class="mt-3">
+            <label class="form-check">
+              {{ form.simular }}
+              <span class="form-check-label">{{ form.simular.label }}</span>
+            </label>
+            <small class="form-hint">{{ form.simular.help_text }}</small>
+          </div>
+        </div>
+        <div class="card-footer d-flex">
+          <a href="{% url 'colaboradores:colaboradores' %}" class="btn btn-link">Voltar</a>
+          <button type="submit" class="btn btn-primary ms-auto">
+            <i class="fa-solid fa-file-import me-2"></i>Enviar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% if resultado %}
+<div class="card mt-3">
+  <div class="card-header">
+    <h3 class="card-title">
+      {% if resultado.simulado %}Simulação: nada foi gravado{% else %}Resultado da importação{% endif %}
+    </h3>
+  </div>
+  <div class="card-body">
+    {% if resultado.simulado %}
+      <div class="alert alert-warning" role="alert">
+        <i class="fa-solid fa-flask me-2"></i>
+        Isto é o que <strong>seria</strong> gravado. Para gravar, envie o arquivo de novo com a simulação desmarcada.
+      </div>
+    {% endif %}
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <span class="badge bg-secondary-lt">Linhas lidas: {{ resultado.lidos }}</span>
+      <span class="badge bg-green-lt">{% if resultado.simulado %}Seriam criados{% else %}Criados{% endif %}: {{ resultado.criados|length }}</span>
+      <span class="badge bg-blue-lt">{% if resultado.simulado %}Seriam atualizados{% else %}Atualizados{% endif %}: {{ resultado.atualizados|length }}</span>
+      <span class="badge bg-secondary-lt">Sem alteração: {{ resultado.sem_alteracao|length }}</span>
+      <span class="badge bg-yellow-lt">Repetidos no arquivo: {{ resultado.duplicados|length }}</span>
+      <span class="badge bg-red-lt">Inválidos: {{ resultado.invalidos|length }}</span>
+    </div>
+    {% if resultado.departamentos_criados %}
+      <p>
+        <strong>{% if resultado.simulado %}Departamentos que seriam criados{% else %}Departamentos criados{% endif %}:</strong>
+        {{ resultado.departamentos_criados|join:", " }}
+      </p>
+    {% endif %}
+  </div>
+
+  {% if resultado.invalidos %}
+    {% include "colaboradores/_itens_importacao.html" with titulo="Inválidos (não importados)" itens=resultado.invalidos com_motivo=True %}
+  {% endif %}
+  {% if resultado.duplicados %}
+    {% include "colaboradores/_itens_importacao.html" with titulo="Repetidos no arquivo (ignorados)" itens=resultado.duplicados com_motivo=True %}
+  {% endif %}
+  {% if resultado.criados %}
+    {% include "colaboradores/_itens_importacao.html" with titulo="Novos colaboradores" itens=resultado.criados %}
+  {% endif %}
+  {% if resultado.atualizados %}
+    {% include "colaboradores/_itens_importacao.html" with titulo="Departamento alterado" itens=resultado.atualizados com_anterior=True %}
+  {% endif %}
+  {% if resultado.sem_alteracao %}
+    {% include "colaboradores/_itens_importacao.html" with titulo="Já existentes, sem alteração" itens=resultado.sem_alteracao com_motivo=True %}
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

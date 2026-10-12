@@ -73,3 +73,20 @@ class FiltroColaboradoresForm(TablerFormMixin, forms.Form):
             'departamento': dados.get('departamento', ''),
             'situacao': dados.get('situacao') or colaboradores_service.SITUACAO_ATIVOS,
         }
+
+
+class ImportarColaboradoresForm(TablerFormMixin, forms.Form):
+    """Um arquivo CSV (Colaborador;Departamento). Arquivo vazio passa: a
+    leitura o recusa com mensagem própria."""
+    arquivo = forms.FileField(
+        label='Arquivo CSV',
+        allow_empty_file=True,
+        widget=forms.ClearableFileInput(attrs={'accept': '.csv,.txt,text/csv,text/plain'}),
+        error_messages={'required': 'Selecione um arquivo.'},
+    )
+    simular = forms.BooleanField(
+        label='Somente simular (não grava nada)',
+        required=False,
+        initial=True,
+        help_text='Desmarque para gravar depois de conferir o resultado da simulação.',
+    )

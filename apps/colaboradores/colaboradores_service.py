@@ -3,15 +3,19 @@
 As views só traduzem requisição/resposta; toda decisão fica aqui.
 """
 
+import csv
+import io
 import json
 import logging
 import re
 from dataclasses import dataclass, field
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Count
 
 from apps.colaboradores.models import Colaborador, Departamento
+from apps.core.csv_utils import decodificar, desfazer_neutralizacao, detectar_separador
 from apps.core.utils import colapsar_espacos, normalizar_nome
 from apps.usuarios.models import User
 
@@ -245,4 +249,201 @@ def carregar_colaboradores(nomes, dry_run=False):
             resultado.criados.append(nome)
     if not dry_run:
         logger.info('Carga de colaboradores: %d criados.', len(resultado.criados))
+    return resultado
+
+
+# ---------------------------------------------------------------------------
+# Importação por CSV (tela do administrador)
+# ---------------------------------------------------------------------------
+EXTENSOES_CSV = ('.csv', '.txt')
+TAMANHO_NOME_COLABORADOR = Colaborador._meta.get_field('nome').max_length
+TAMANHO_NOME_DEPARTAMENTO = Departamento._meta.get_field('nome').max_length
+
+# Cabeçalho normalizado (sem acento, caixa e símbolos) -> coluna.
+_ALIASES_CSV = {'colaborador': 'Colaborador', 'nome': 'Colaborador', 'departamento': 'Departamento'}
+
+
+class ArquivoColaboradoresInvalido(Exception):
+    """Arquivo recusado inteiro (extensão, tamanho, codificação, colunas)."""
+
+
+@dataclass
+class LinhaColaborador:
+    """Uma linha de dados do CSV. ``linha``: posição no arquivo (cabeçalho
+    = 1). ``departamento`` vazio = sem departamento."""
+    linha: int
+    nome: str
+    departamento: str = ''
+
+
+def ler_csv_colaboradores(enviado):
+    """Lê o CSV ``Colaborador;Departamento`` de um arquivo enviado (objeto
+    com ``name``, ``size`` e ``read()``).
+
+    Mesmas regras de leitura da importação de ausências: ``;`` ou ``,``,
+    UTF-8 ou Windows-1252, limites ``CSV_IMPORTACAO_MAX_BYTES`` e
+    ``CSV_IMPORTACAO_MAX_REGISTROS``, apóstrofo anti-fórmula desfeito. A
+    coluna Departamento é opcional; linhas totalmente vazias são descartadas.
+    Problema no arquivo inteiro = ``ArquivoColaboradoresInvalido``.
+    """
+    if not enviado.name.lower().endswith(EXTENSOES_CSV):
+        raise ArquivoColaboradoresInvalido('Extensão não aceita: envie um arquivo .csv ou .txt.')
+    max_bytes = settings.CSV_IMPORTACAO_MAX_BYTES
+    if enviado.size > max_bytes:
+        raise ArquivoColaboradoresInvalido(f'Arquivo maior que {max_bytes / (1024 * 1024):g} MB.')
+    texto, _codificacao = decodificar(enviado.read())
+    if texto is None:
+        raise ArquivoColaboradoresInvalido('Codificação não reconhecida: salve o arquivo em UTF-8 ou Windows-1252.')
+    if not texto.strip():
+        raise ArquivoColaboradoresInvalido('O arquivo está vazio.')
+    try:
+        tabela = list(csv.reader(io.StringIO(texto, newline=''), delimiter=detectar_separador(texto), quotechar='"'))
+    except csv.Error as erro:
+        raise ArquivoColaboradoresInvalido(f'O arquivo não é um CSV válido ({erro}).')
+
+    indices = {}
+    for indice, titulo in enumerate(tabela[0]):
+        coluna = _ALIASES_CSV.get(re.sub(r'[^a-z0-9]', '', normalizar_nome(titulo)))
+        if coluna and coluna not in indices:
+            indices[coluna] = indice
+    if 'Colaborador' not in indices:
+        raise ArquivoColaboradoresInvalido('Falta a coluna obrigatória: Colaborador.')
+
+    max_registros = settings.CSV_IMPORTACAO_MAX_REGISTROS
+    linhas = []
+    for posicao, valores in enumerate(tabela[1:], start=2):
+        if not any(valor.strip() for valor in valores):
+            continue
+        if len(linhas) == max_registros:
+            raise ArquivoColaboradoresInvalido(
+                f'O arquivo tem mais de {max_registros} registros: divida-o em arquivos menores.'
+            )
+        lidos = {
+            coluna: desfazer_neutralizacao(valores[indice]) if indice < len(valores) else ''
+            for coluna, indice in indices.items()
+        }
+        linhas.append(LinhaColaborador(
+            linha=posicao,
+            nome=colapsar_espacos(lidos['Colaborador']),
+            departamento=colapsar_espacos(lidos.get('Departamento')),
+        ))
+    if not linhas:
+        raise ArquivoColaboradoresInvalido('O arquivo não tem linhas de dados.')
+    return linhas
+
+
+@dataclass
+class ItemImportacao:
+    """Uma linha no resumo. ``departamento``/``anterior``: nome ou vazio
+    (= sem departamento)."""
+    linha: int
+    nome: str
+    departamento: str = ''
+    anterior: str = ''
+    motivo: str = ''
+
+
+@dataclass
+class ResultadoImportacao:
+    simulado: bool
+    lidos: int = 0
+    criados: list = field(default_factory=list)
+    atualizados: list = field(default_factory=list)
+    sem_alteracao: list = field(default_factory=list)
+    duplicados: list = field(default_factory=list)
+    invalidos: list = field(default_factory=list)
+    departamentos_criados: list = field(default_factory=list)
+
+
+def _motivo_invalida(linha):
+    if not linha.nome:
+        return 'Colaborador não informado.'
+    if len(linha.nome) > TAMANHO_NOME_COLABORADOR:
+        return f'Nome do colaborador com mais de {TAMANHO_NOME_COLABORADOR} caracteres.'
+    if len(linha.departamento) > TAMANHO_NOME_DEPARTAMENTO:
+        return f'Nome do departamento com mais de {TAMANHO_NOME_DEPARTAMENTO} caracteres.'
+    return ''
+
+
+def importar_colaboradores(linhas, usuario, simular=True):
+    """Aplica as linhas lidas do CSV (``LinhaColaborador``).
+
+    - Colaborador novo (por ``nome_normalizado``): criado ativo, com o
+      departamento da linha; departamento vazio = sem departamento.
+    - Colaborador existente (ativo ou não): se a linha traz departamento
+      diferente do atual, o departamento é trocado; departamento vazio NÃO
+      apaga o atual. Nome e ``ativo`` nunca são alterados.
+    - Departamento inexistente (comparação sem diferença de maiúsculas, como
+      a constraint): criado, só se alguma linha aplicada o usa.
+    - Nome repetido no arquivo: vale a primeira linha; as demais vão para
+      ``duplicados``. Linha sem nome ou com nome longo demais: ``invalidos``.
+
+    Tudo numa transação, com os colaboradores existentes travados. Com
+    ``simular`` nada é gravado, mas o resultado é o mesmo que seria.
+    """
+    resultado = ResultadoImportacao(simulado=simular, lidos=len(linhas))
+    unicas = {}
+    for linha in linhas:
+        motivo = _motivo_invalida(linha)
+        if motivo:
+            resultado.invalidos.append(ItemImportacao(linha.linha, linha.nome, linha.departamento, motivo=motivo))
+            continue
+        chave = normalizar_nome(linha.nome)
+        if chave in unicas:
+            resultado.duplicados.append(ItemImportacao(
+                linha.linha, linha.nome, linha.departamento,
+                motivo=f'Repete o nome da linha {unicas[chave].linha}.',
+            ))
+            continue
+        unicas[chave] = linha
+
+    with transaction.atomic():
+        existentes = {
+            colaborador.nome_normalizado: colaborador
+            for colaborador in Colaborador.objects.select_for_update().filter(nome_normalizado__in=unicas)
+        }
+        departamentos = {departamento.nome.lower(): departamento for departamento in Departamento.objects.all()}
+        nome_do_departamento = {departamento.pk: departamento.nome for departamento in departamentos.values()}
+
+        def departamento_de(nome):
+            """O departamento de ``nome`` (criado se preciso) ou ``None``."""
+            if not nome:
+                return None
+            chave = nome.lower()
+            if chave not in departamentos:
+                novo = Departamento(nome=nome)
+                if not simular:
+                    _gravar_com_auditoria(novo, usuario)
+                departamentos[chave] = novo
+                resultado.departamentos_criados.append(nome)
+            return departamentos[chave]
+
+        for chave, linha in unicas.items():
+            colaborador = existentes.get(chave)
+            if colaborador is None:
+                departamento = departamento_de(linha.departamento)
+                if not simular:
+                    _gravar_com_auditoria(Colaborador(nome=linha.nome, departamento=departamento), usuario)
+                resultado.criados.append(ItemImportacao(
+                    linha.linha, linha.nome, departamento.nome if departamento else '',
+                ))
+                continue
+
+            atual = nome_do_departamento.get(colaborador.departamento_id, '')
+            if not linha.departamento or linha.departamento.lower() == atual.lower():
+                motivo = 'Departamento vazio no arquivo: mantido o atual.' if atual and not linha.departamento else ''
+                resultado.sem_alteracao.append(ItemImportacao(linha.linha, colaborador.nome, atual, motivo=motivo))
+                continue
+            novo = departamento_de(linha.departamento)
+            if not simular:
+                colaborador.departamento = novo
+                colaborador.atualizado_por = usuario
+                colaborador.save(update_fields=['departamento', 'atualizado_por', 'atualizado_em'])
+            resultado.atualizados.append(ItemImportacao(linha.linha, colaborador.nome, novo.nome, anterior=atual))
+
+    if not simular:
+        logger.info(
+            'Importação de colaboradores: %d criados, %d atualizados, %d departamentos criados.',
+            len(resultado.criados), len(resultado.atualizados), len(resultado.departamentos_criados),
+        )
     return resultado

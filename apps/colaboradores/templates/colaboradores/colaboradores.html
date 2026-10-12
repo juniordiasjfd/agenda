@@ -10,7 +10,10 @@
         <div class="page-pretitle">Administração</div>
         <h2 class="page-title">Colaboradores</h2>
       </div>
-      <div class="col-auto ms-auto">
+      <div class="col-auto ms-auto d-flex gap-2">
+        <a href="{% url 'colaboradores:colaboradores_importar' %}" class="btn">
+          <i class="fa-solid fa-file-import me-2"></i>Importar CSV
+        </a>
         <a href="{% url 'colaboradores:colaborador_criar' %}" class="btn btn-primary">
           <i class="fa-solid fa-plus me-2"></i>Novo colaborador
         </a>

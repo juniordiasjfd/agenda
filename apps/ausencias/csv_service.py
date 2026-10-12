@@ -26,6 +26,13 @@ from apps.ausencias.ausencias_service import ANO_MAXIMO, ANO_MINIMO
 from apps.ausencias.models import ImportacaoCSV, SituacaoAusencia, TipoAusencia
 from apps.colaboradores import colaboradores_service
 from apps.colaboradores.models import Colaborador
+from apps.core.csv_utils import (
+    BOM,
+    decodificar,
+    desfazer_neutralizacao,
+    detectar_separador,
+    neutralizar_formula,
+)
 from apps.core.utils import colapsar_espacos, normalizar_nome
 
 logger = logging.getLogger(__name__)
@@ -36,26 +43,6 @@ COLUNAS = [
 ]
 # Campos de texto livre: os únicos neutralizados contra injeção de fórmula.
 COLUNAS_TEXTO = ('Titulo', 'Colaborador', 'TipoEvento', 'Situacao', 'Observacoes')
-BOM = '﻿'
-
-
-# ---------------------------------------------------------------------------
-# Injeção de fórmula (planilhas executam célula que começa com = + - @...)
-# ---------------------------------------------------------------------------
-_INICIO_DE_FORMULA = ('=', '+', '-', '@', '\t', '\r')
-
-
-def neutralizar_formula(valor):
-    """Prefixa com apóstrofo o texto que uma planilha leria como fórmula."""
-    return f"'{valor}" if valor.startswith(_INICIO_DE_FORMULA) else valor
-
-
-def desfazer_neutralizacao(valor):
-    """Inverso exato de ``neutralizar_formula``: tira o apóstrofo só quando
-    ele vem seguido de um dos caracteres neutralizados."""
-    if len(valor) >= 2 and valor[0] == "'" and valor[1] in _INICIO_DE_FORMULA:
-        return valor[1:]
-    return valor
 
 
 def escrever_csv(linhas, colunas=COLUNAS):
@@ -246,23 +233,6 @@ class ArquivoLido:
         )
 
 
-def decodificar(conteudo):
-    """``(texto, codificação)``: UTF-8 (com ou sem BOM) e, se não for,
-    Windows-1252. ``(None, '')`` se nenhuma das duas servir."""
-    try:
-        texto = conteudo.decode('utf-8')
-    except UnicodeDecodeError:
-        pass
-    else:
-        if texto.startswith(BOM):
-            return texto[1:], 'UTF-8 com BOM'
-        return texto, 'UTF-8'
-    try:
-        return conteudo.decode('cp1252'), 'Windows-1252'
-    except UnicodeDecodeError:
-        return None, ''
-
-
 def ler_conteudo(nome, conteudo, max_registros=None):
     """Lê um arquivo já carregado (``bytes``). Separador ``;`` ou ``,``
     detectado pelo cabeçalho (o mais frequente; empate = ``;``), aspas no
@@ -279,8 +249,7 @@ def ler_conteudo(nome, conteudo, max_registros=None):
         arquivo.erro = 'O arquivo está vazio.'
         return arquivo
 
-    primeira_linha = texto.splitlines()[0]
-    arquivo.separador = ';' if primeira_linha.count(';') >= primeira_linha.count(',') else ','
+    arquivo.separador = detectar_separador(texto)
     try:
         tabela = list(csv.reader(io.StringIO(texto, newline=''), delimiter=arquivo.separador, quotechar='"'))
     except csv.Error as erro:
