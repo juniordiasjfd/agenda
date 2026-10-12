@@ -1,15 +1,15 @@
 from io import StringIO
+from pathlib import Path
 
 import pytest
-from django.conf import settings
 from django.core.management import CommandError, call_command
 
 from apps.colaboradores.colaboradores_service import ArquivoNomesInvalido, ler_nomes_js
 from apps.colaboradores.models import Colaborador
 
-ARQUIVO_LEGADO = settings.BASE_DIR / 'legado' / 'referencias' / 'funcionarios.js'
-# Nomes em legado/referencias/funcionarios.js (todos distintos).
-TOTAL_LEGADO = 120
+ARQUIVO_LEGADO = Path(__file__).parent / 'fixtures' / 'funcionarios_sintetico.js'
+# Arquivo sintético no formato do legado (nomes fictícios, todos distintos).
+TOTAL_LEGADO = 10
 
 
 def _rodar(caminho, *args):
@@ -80,7 +80,7 @@ def test_ler_nomes_js_nao_executa_nada():
 
 
 # ---------------------------------------------------------------------------
-# Comando com o arquivo real do legado
+# Comando com o arquivo no formato do legado
 # ---------------------------------------------------------------------------
 @pytest.mark.django_db
 def test_carrega_arquivo_legado():
@@ -90,7 +90,7 @@ def test_carrega_arquivo_legado():
     assert not Colaborador.objects.filter(ativo=False).exists()
     assert not Colaborador.objects.filter(departamento__isnull=False).exists()
     assert Colaborador.objects.filter(nome='Helena Teixeira Exemplo').exists()
-    assert Colaborador.objects.filter(nome='Adriana de Fátima Modelo').exists()
+    assert Colaborador.objects.filter(nome='Beatriz de Fátima Modelo').exists()
     assert f'Lidos: {TOTAL_LEGADO}' in saida
     assert f'Criados: {TOTAL_LEGADO}' in saida
     assert 'Já existentes (ignorados): 0' in saida
@@ -133,7 +133,7 @@ def test_normaliza_espacos_e_reporta_duplicados_no_arquivo(arquivo_js):
 
     saida = _rodar(caminho)
 
-    assert sorted(Colaborador.objects.values_list('nome', flat=True)) == ['José Lima', 'Helena Teixeira Exemplo']
+    assert sorted(Colaborador.objects.values_list('nome', flat=True)) == ['Helena Teixeira Exemplo', 'José Lima']
     assert 'Lidos: 5' in saida
     assert 'Criados: 2' in saida
     assert 'Duplicados no arquivo (ignorados): 2' in saida
