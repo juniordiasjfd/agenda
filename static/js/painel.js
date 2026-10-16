@@ -437,16 +437,16 @@
     var colNome = criar('col');
     colNome.style.width = 'var(--painel-nome)';
     colgroup.appendChild(colNome);
-    cols.forEach(function () {
-      var col = criar('col');
-      col.style.width = largura + 'px';
-      colgroup.appendChild(col);
-    });
+    // Colunas de período sem largura própria: com table-layout fixed, dividem
+    // igualmente o que sobra da coluna do nome. A tabela ocupa toda a largura
+    // do contêiner e só fica mais larga (com rolagem) quando as colunas
+    // ficariam menores que a largura mínima da escala.
+    cols.forEach(function () { colgroup.appendChild(criar('col')); });
 
     var tbody = criar('tbody');
     pessoas.forEach(function (pessoa) { tbody.appendChild(linhaDaPessoa(pessoa, cols)); });
 
-    el.gantt.style.width = 'calc(var(--painel-nome) + ' + (cols.length * largura) + 'px)';
+    el.gantt.style.width = 'max(100%, calc(var(--painel-nome) + ' + (cols.length * largura) + 'px))';
     el.gantt.replaceChildren(colgroup, cabecalho(cols), tbody);
     el.vazio.classList.toggle('d-none', pessoas.length > 0);
     el.rolagem.scrollLeft = 0;
